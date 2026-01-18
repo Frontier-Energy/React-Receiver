@@ -6,10 +6,17 @@ builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 builder.Services.Configure<React_Receiver.Services.BlobStorageOptions>(
     builder.Configuration.GetSection("BlobStorage"));
+builder.Services.Configure<React_Receiver.Services.QueueStorageOptions>(
+    builder.Configuration.GetSection("QueueStorage"));
 builder.Services.AddSingleton(sp =>
 {
     var options = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<React_Receiver.Services.BlobStorageOptions>>().Value;
     return new Azure.Storage.Blobs.BlobServiceClient(options.ConnectionString);
+});
+builder.Services.AddSingleton(sp =>
+{
+    var options = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<React_Receiver.Services.QueueStorageOptions>>().Value;
+    return new Azure.Storage.Queues.QueueServiceClient(options.ConnectionString);
 });
 
 var app = builder.Build();

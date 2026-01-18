@@ -1,9 +1,6 @@
-using System.Collections.Generic;
-using System.IO;
 using System.Text.Json;
-using System.Threading;
-using System.Threading.Tasks;
 using Azure.Storage.Blobs;
+using Azure.Storage.Queues;
 using Microsoft.AspNetCore.Mvc;
 using React_Receiver.Models;
 using React_Receiver.Services;
@@ -15,14 +12,20 @@ namespace React_Receiver.Controllers;
 public sealed class QHVACController : ControllerBase
 {
     private readonly BlobServiceClient _blobServiceClient;
+    private readonly QueueServiceClient _queueServiceClient;
     private readonly BlobStorageOptions _blobOptions;
+    private readonly QueueStorageOptions _queueOptions;
 
     public QHVACController(
         BlobServiceClient blobServiceClient,
-        Microsoft.Extensions.Options.IOptions<BlobStorageOptions> blobOptions)
+        QueueServiceClient queueServiceClient,
+        Microsoft.Extensions.Options.IOptions<BlobStorageOptions> blobOptions,
+        Microsoft.Extensions.Options.IOptions<QueueStorageOptions> queueOptions)
     {
         _blobServiceClient = blobServiceClient;
+        _queueServiceClient = queueServiceClient;
         _blobOptions = blobOptions.Value;
+        _queueOptions = queueOptions.Value;
     }
 
     [HttpPost(nameof(ReceiveInspection))] //prod point
@@ -71,5 +74,25 @@ public sealed class QHVACController : ControllerBase
         stream.Position = 0;
 
         await blobClient.UploadAsync(stream, overwrite: true, cancellationToken);
+
+        await SendQueueMessageAsync(request, cancellationToken);
+    }
+
+    private async Task SendQueueMessageAsync(ReceiveInspectionRequest request, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(_queueOptions.QueueName))
+        {
+            return;
+        }
+
+        var queueClient = _queueServiceClient.GetQueueClient(_queueOptions.QueueName);
+        await queueClient.CreateIfNotExistsAsync(cancellationToken: cancellationToken);
+
+        var payload = JsonSerializer.Serialize(new
+        {
+            sessionId = request.SessionId ?? string.Empty
+        });
+
+        await queueClient.SendMessageAsync(payload, cancellationToken);
     }
 }

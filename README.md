@@ -40,6 +40,7 @@ PowerShell (Invoke-RestMethod):
 $body = @{
   sessionId = "abc123"
   name = "Test"
+  userId = "67fa3235-a5a4-40d7-b3f1-760983772605"
   queryParams = @{ foo = "bar"; priority = "high" }
 } | ConvertTo-Json
 ```
