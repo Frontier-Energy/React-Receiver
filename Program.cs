@@ -4,6 +4,13 @@ var builder = WebApplication.CreateBuilder(args);
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
+builder.Services.Configure<React_Receiver.Services.BlobStorageOptions>(
+    builder.Configuration.GetSection("BlobStorage"));
+builder.Services.AddSingleton(sp =>
+{
+    var options = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<React_Receiver.Services.BlobStorageOptions>>().Value;
+    return new Azure.Storage.Blobs.BlobServiceClient(options.ConnectionString);
+});
 
 var app = builder.Build();
 

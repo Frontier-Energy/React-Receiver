@@ -32,6 +32,8 @@ dotnet run
 ```
 
 ## Test ReceiveInspection (POST)
+The test URL in azure is https://react-receiver.icysmoke-6c3b2e19.centralus.azurecontainerapps.io/QHVAC/ReceiveInspection
+
 
 PowerShell (Invoke-RestMethod):
 ```powershell
