@@ -63,7 +63,7 @@ public sealed class QHVACController : ControllerBase
         var containerClient = _blobServiceClient.GetBlobContainerClient(_blobOptions.ContainerName);
         await containerClient.CreateIfNotExistsAsync(cancellationToken: cancellationToken);
 
-        var blobName = $"{DateTime.UtcNow:yyyyMMdd-HHmmssfff}-{Guid.NewGuid():N}.json";
+        var blobName = $"{request.SessionId}.json";
         var blobClient = containerClient.GetBlobClient(blobName);
 
         await using var stream = new MemoryStream();
