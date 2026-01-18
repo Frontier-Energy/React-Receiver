@@ -1,0 +1,29 @@
+name: Build and push to ACR
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+env:
+  ACR_NAME: ${{ secrets.ACR_NAME }}
+  ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
+  IMAGE_NAME: react-receiver
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Build and push image
+        run: |
+          az acr login --name "$ACR_NAME"
+          docker build -t "$ACR_LOGIN_SERVER/$IMAGE_NAME:${{ github.sha }}" -t "$ACR_LOGIN_SERVER/$IMAGE_NAME:latest" .
+          docker push "$ACR_LOGIN_SERVER/$IMAGE_NAME:${{ github.sha }}"
+          docker push "$ACR_LOGIN_SERVER/$IMAGE_NAME:latest"
