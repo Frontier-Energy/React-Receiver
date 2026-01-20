@@ -44,6 +44,14 @@ public sealed class QHVACController : ControllerBase
         return Ok(response);
     }
 
+    [HttpPost(nameof(Register))]
+    public ActionResult<RegisterResponseModel> Register(
+        [FromBody] RegisterRequestModel request)
+    {
+        var response = new RegisterResponseModel(UserId: Guid.NewGuid().ToString("N"));
+        return Ok(response);
+    }
+
     [HttpGet(nameof(ReceiveInspection))]   //Testing only - http://localhost:5108/QHVAC/ReceiveInspection?SessionId=abc123&Name=Test&QueryParams[foo]=bar&QueryParams[priority]=high
     public async Task<ActionResult<ReceiveInspectionResponse>> ReceiveInspectionGet(
         [FromQuery] ReceiveInspectionRequest request)
