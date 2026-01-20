@@ -9,8 +9,8 @@ env:
   ACR_NAME: ${{ secrets.ACR_NAME }}
   ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
   IMAGE_NAME: react-receiver
-  CONTAINERAPP_NAME: ${{ secrets.CONTAINERAPP_NAME }}
-  CONTAINERAPP_RESOURCE_GROUP: ${{ secrets.CONTAINERAPP_RESOURCE_GROUP }}
+  CONTAINERAPP_NAME: react-receiver
+  CONTAINERAPP_RESOURCE_GROUP: jmc-sandbox
 
 jobs:
   build:
