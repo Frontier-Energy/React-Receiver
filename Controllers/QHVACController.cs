@@ -52,8 +52,7 @@ public sealed class QHVACController : ControllerBase
         return Ok(response);
     }
 
-    [HttpGet(nameof(ReceiveInspection))]   //Testing only - http://localhost:5108/QHVAC/ReceiveInspection?SessionId=abc123&Name=Test&QueryParams[foo]=bar&QueryParams[priority]=high
-    public async Task<ActionResult<ReceiveInspectionResponse>> ReceiveInspectionGet(
+    [HttpGet(nameof(ReceiveInspection))]   public async Task<ActionResult<ReceiveInspectionResponse>> ReceiveInspectionGet(
         [FromQuery] ReceiveInspectionRequest request)
     {
         await SaveRequestAsync(request, HttpContext.RequestAborted);
