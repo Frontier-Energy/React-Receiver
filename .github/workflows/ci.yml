@@ -9,6 +9,8 @@ env:
   ACR_NAME: ${{ secrets.ACR_NAME }}
   ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
   IMAGE_NAME: react-receiver
+  CONTAINERAPP_NAME: ${{ secrets.CONTAINERAPP_NAME }}
+  CONTAINERAPP_RESOURCE_GROUP: ${{ secrets.CONTAINERAPP_RESOURCE_GROUP }}
 
 jobs:
   build:
@@ -27,3 +29,10 @@ jobs:
           docker build -t "$ACR_LOGIN_SERVER/$IMAGE_NAME:${{ github.sha }}" -t "$ACR_LOGIN_SERVER/$IMAGE_NAME:latest" .
           docker push "$ACR_LOGIN_SERVER/$IMAGE_NAME:${{ github.sha }}"
           docker push "$ACR_LOGIN_SERVER/$IMAGE_NAME:latest"
+
+      - name: Deploy latest image to Container App
+        run: |
+          az containerapp update \
+            --name "$CONTAINERAPP_NAME" \
+            --resource-group "$CONTAINERAPP_RESOURCE_GROUP" \
+            --image "$ACR_LOGIN_SERVER/$IMAGE_NAME:latest"
