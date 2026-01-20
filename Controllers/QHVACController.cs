@@ -52,7 +52,8 @@ public sealed class QHVACController : ControllerBase
         return Ok(response);
     }
 
-    [HttpGet(nameof(ReceiveInspection))]   public async Task<ActionResult<ReceiveInspectionResponse>> ReceiveInspectionGet(
+    [HttpGet(nameof(ReceiveInspection))]   
+    public async Task<ActionResult<ReceiveInspectionResponse>> ReceiveInspectionGet(
         [FromQuery] ReceiveInspectionRequest request)
     {
         await SaveRequestAsync(request, HttpContext.RequestAborted);
