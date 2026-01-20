@@ -27,6 +27,12 @@ jobs:
       - name: Set subscription
         run: az account set --subscription "${{ secrets.AZURE_SUBSCRIPTION_ID }}"
 
+      - name: Verify Container App exists
+        run: |
+          az containerapp show \
+            --name "$CONTAINERAPP_NAME" \
+            --resource-group "$CONTAINERAPP_RESOURCE_GROUP"
+
       - name: Build and push image
         run: |
           az acr login --name "$ACR_NAME"
