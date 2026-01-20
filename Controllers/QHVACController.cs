@@ -36,6 +36,14 @@ public sealed class QHVACController : ControllerBase
         return Ok(BuildResponse(request));
     }
 
+    [HttpPost(nameof(Login))]
+    public ActionResult<LoginRequestResponse> Login(
+        [FromBody] LoginRequestCommand request)
+    {
+        var response = new LoginRequestResponse(UserId: Guid.NewGuid().ToString("N"));
+        return Ok(response);
+    }
+
     [HttpGet(nameof(ReceiveInspection))]   //Testing only - http://localhost:5108/QHVAC/ReceiveInspection?SessionId=abc123&Name=Test&QueryParams[foo]=bar&QueryParams[priority]=high
     public async Task<ActionResult<ReceiveInspectionResponse>> ReceiveInspectionGet(
         [FromQuery] ReceiveInspectionRequest request)

@@ -45,16 +45,17 @@ $body = @{
 } | ConvertTo-Json
 ```
 
-Invoke a local call for testing
+Invoke a remote  call for testing
 ```
 Invoke-RestMethod "https://react-receiver.icysmoke-6c3b2e19.centralus.azurecontainerapps.io/QHVAC/ReceiveInspection/" `
   -Method Post `
   -ContentType "application/json" `
   -Body $body
+
 ```
 
 OR 
-Invoke a remove call for testing the QA env.
+Invoke a local call for testing the QA env.
 
 ```
 Invoke-RestMethod "http://localhost:5108/QHVAC/ReceiveInspection" `
