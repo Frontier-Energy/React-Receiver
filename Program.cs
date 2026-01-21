@@ -18,6 +18,7 @@ builder.Services.AddSingleton(sp =>
     var options = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<React_Receiver.Services.QueueStorageOptions>>().Value;
     return new Azure.Storage.Queues.QueueServiceClient(options.ConnectionString);
 });
+builder.Services.AddSingleton<React_Receiver.Handlers.InspectionRequestHandler>();
 
 var app = builder.Build();
 
