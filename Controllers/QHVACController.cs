@@ -65,17 +65,33 @@ public sealed class QHVACController : ControllerBase
             await tableClient.CreateIfNotExistsAsync(cancellationToken: HttpContext.RequestAborted);
 
             UserEntity? existing = null;
-            try
+            if (!string.IsNullOrWhiteSpace(request.Email))
             {
-                var response = await tableClient.GetEntityAsync<UserEntity>(
-                    UserEntity.PartitionKeyValue,
-                    userId,
-                    cancellationToken: HttpContext.RequestAborted);
-                existing = response.Value;
+                var filter = TableClient.CreateQueryFilter<UserEntity>(entity =>
+                    entity.PartitionKey == UserEntity.PartitionKeyValue &&
+                    entity.Email == request.Email);
+                await foreach (var entity in tableClient.QueryAsync<UserEntity>(
+                    filter: filter,
+                    cancellationToken: HttpContext.RequestAborted))
+                {
+                    existing = entity;
+                    break;
+                }
             }
-            catch (RequestFailedException ex) when (ex.Status == 404)
+            else
             {
-                existing = null;
+                try
+                {
+                    var response = await tableClient.GetEntityAsync<UserEntity>(
+                        UserEntity.PartitionKeyValue,
+                        userId,
+                        cancellationToken: HttpContext.RequestAborted);
+                    existing = response.Value;
+                }
+                catch (RequestFailedException ex) when (ex.Status == 404)
+                {
+                    existing = null;
+                }
             }
 
             if (existing is null)
@@ -91,6 +107,10 @@ public sealed class QHVACController : ControllerBase
                 };
 
                 await tableClient.AddEntityAsync(entity, HttpContext.RequestAborted);
+            }
+            else
+            {
+                userId = existing.UserId;
             }
         }
 
