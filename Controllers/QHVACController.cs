@@ -1,8 +1,11 @@
 using System.Text.Json;
+using Azure;
+using Azure.Data.Tables;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using React_Receiver.Handlers;
 using React_Receiver.Models;
+using React_Receiver.Services;
 
 namespace React_Receiver.Controllers;
 
@@ -12,11 +15,17 @@ public sealed class QHVACController : ControllerBase
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly InspectionRequestHandler _inspectionRequestHandler;
+    private readonly TableServiceClient _tableServiceClient;
+    private readonly TableStorageOptions _tableOptions;
 
     public QHVACController(
-        InspectionRequestHandler inspectionRequestHandler)
+        InspectionRequestHandler inspectionRequestHandler,
+        TableServiceClient tableServiceClient,
+        Microsoft.Extensions.Options.IOptions<TableStorageOptions> tableOptions)
     {
         _inspectionRequestHandler = inspectionRequestHandler;
+        _tableServiceClient = tableServiceClient;
+        _tableOptions = tableOptions.Value;
     }
 
     [HttpPost(nameof(ReceiveInspection))] //prod point
@@ -43,11 +52,49 @@ public sealed class QHVACController : ControllerBase
     }
 
     [HttpPost(nameof(Register))]
-    public ActionResult<RegisterResponseModel> Register(
+    public async Task<ActionResult<RegisterResponseModel>> Register(
         [FromBody] RegisterRequestModel request)
     {
-        var response = new RegisterResponseModel(UserId: Guid.NewGuid().ToString("N"));
-        return Ok(response);
+        var userId = string.IsNullOrWhiteSpace(request.UserId)
+            ? Guid.NewGuid().ToString("N")
+            : request.UserId;
+
+        if (!string.IsNullOrWhiteSpace(_tableOptions.ConnectionString))
+        {
+            var tableClient = _tableServiceClient.GetTableClient(_tableOptions.TableName);
+            await tableClient.CreateIfNotExistsAsync(cancellationToken: HttpContext.RequestAborted);
+
+            UserEntity? existing = null;
+            try
+            {
+                var response = await tableClient.GetEntityAsync<UserEntity>(
+                    UserEntity.PartitionKeyValue,
+                    userId,
+                    cancellationToken: HttpContext.RequestAborted);
+                existing = response.Value;
+            }
+            catch (RequestFailedException ex) when (ex.Status == 404)
+            {
+                existing = null;
+            }
+
+            if (existing is null)
+            {
+                var entity = new UserEntity
+                {
+                    PartitionKey = UserEntity.PartitionKeyValue,
+                    RowKey = userId,
+                    UserId = userId,
+                    Email = request.Email,
+                    FirstName = request.FirstName,
+                    LastName = request.LastName
+                };
+
+                await tableClient.AddEntityAsync(entity, HttpContext.RequestAborted);
+            }
+        }
+
+        return Ok(new RegisterResponseModel(UserId: userId));
     }
 
     [HttpGet(nameof(ReceiveInspection))]   

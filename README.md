@@ -84,6 +84,11 @@ $response = $client.PostAsync($uri, $multipart).Result
 $response.Content.ReadAsStringAsync().Result
 ```
 
+## Test Register (POST)
+Run the PowerShell helper script:
+```powershell
+.\Test-Register.ps1 -BaseUrl "https://localhost:5108" -FirstName "Jane" -LastName "Doe" -Email "jane.doe@example.com"
+```
 
 ## Debug in Visual Studio Code
 
