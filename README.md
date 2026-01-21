@@ -32,52 +32,58 @@ dotnet run
 ```
 
 ## Test ReceiveInspection (POST)
-The test URL in azure is 
+The ReceiveInspection endpoint expects `multipart/form-data` with a JSON payload field
+and optional file uploads.
 
-
-PowerShell (Invoke-RestMethod):
+set a body for testing in powershell
 ```powershell
-$body = @{
-  sessionId = "abc123"
-  name = "Test"
-  userId = "67fa3235-a5a4-40d7-b3f1-760983772605"
-  queryParams = @{ foo = "bar"; priority = "high" }
-} | ConvertTo-Json
+$payload = @{
+  sessionId = "test-session-001"
+  userId = "test-user-001"
+  name = "Test Inspection"
+  queryParams = @{
+    foo = "bar"
+    priority = "high"
+  }
+} | ConvertTo-Json -Depth 5
 ```
 
-Invoke a remote  call for testing
-```
+Invoke a remote call for testing (PowerShell 7+):
+```powershell
 Invoke-RestMethod "https://react-receiver.icysmoke-6c3b2e19.centralus.azurecontainerapps.io/QHVAC/ReceiveInspection/" `
   -Method Post `
-  -ContentType "application/json" `
-  -Body $body
-
+  -Form @{ Payload = $payload }
 ```
 
-OR 
-Invoke a local call for testing the QA env.
-
+Set the URL to local, or dev
 ```
-Invoke-RestMethod "http://localhost:5108/QHVAC/ReceiveInspection" `
-  -Method Post `
-  -ContentType "application/json" `
-  -Body $body
+$uri = "http://localhost:5108/QHVAC/ReceiveInspection"
+$uri = "https://react-receiver.icysmoke-6c3b2e19.centralus.azurecontainerapps.io/QHVAC/ReceiveInspection/"
 ```
 
-PowerShell (Invoke-WebRequest):
+Add the http dll to powershell
 ```powershell
-Invoke-WebRequest "http://localhost:5108/QHVAC/ReceiveInspection" `
-  -Method Post `
-  -ContentType "application/json" `
-  -Body $body
+
+$netHttp = "$env:WINDIR\Microsoft.NET\Framework64\v4.0.30319\System.Net.Http.dll"
+if (-not (Test-Path $netHttp)) {
+  $netHttp = "$env:WINDIR\Microsoft.NET\Framework\v4.0.30319\System.Net.Http.dll"
+}
+
+Add-Type -Path $netHttp
 ```
 
-Windows cmd:
-```sh
-curl -X POST "http://localhost:5108/QHVAC/ReceiveInspection" ^
-  -H "Content-Type: application/json" ^
-  -d "{\"sessionId\":\"abc123\",\"name\":\"Test\",\"queryParams\":{\"foo\":\"bar\",\"priority\":\"high\"}}"
+execute (multipart via HttpClient):
+```powershell
+
+$multipart = New-Object System.Net.Http.MultipartFormDataContent
+$jsonContent = New-Object System.Net.Http.StringContent($payload, [System.Text.Encoding]::UTF8, "application/json")
+$multipart.Add($jsonContent, "Payload")
+
+$client = New-Object System.Net.Http.HttpClient
+$response = $client.PostAsync($uri, $multipart).Result
+$response.Content.ReadAsStringAsync().Result
 ```
+
 
 ## Debug in Visual Studio Code
 
