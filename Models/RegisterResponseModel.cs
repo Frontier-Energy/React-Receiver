@@ -1,5 +1,7 @@
 namespace React_Receiver.Models;
 
 public sealed record RegisterResponseModel(
-    string UserId
+    string UserId,
+    int FileCount,
+    string[] UploadedBlobs
 );

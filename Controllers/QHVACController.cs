@@ -1,3 +1,4 @@
+using System;
 using System.Text.Json;
 using Azure;
 using Azure.Data.Tables;
@@ -47,9 +48,15 @@ public sealed class QHVACController : ControllerBase
     public ActionResult<LoginRequestResponse> Login(
         [FromBody] LoginRequestCommand request)
     {
-        var response = new LoginRequestResponse(UserId: Guid.NewGuid().ToString("N"));
+        LoginRequestResponse response = HandleLogin(request);
         return Ok(response);
     }
+
+    private static LoginRequestResponse HandleLogin( LoginRequestCommand request)
+    {
+        return new LoginRequestResponse(UserId: Guid.NewGuid().ToString("N"));
+    }
+
 
     [HttpPost(nameof(Register))]
     public async Task<ActionResult<RegisterResponseModel>> Register(
@@ -58,7 +65,16 @@ public sealed class QHVACController : ControllerBase
         var userId = string.IsNullOrWhiteSpace(request.UserId)
             ? Guid.NewGuid().ToString("N")
             : request.UserId;
+        userId = await HandleRegister(request, userId);
 
+        return Ok(new RegisterResponseModel(
+            UserId: userId,
+            FileCount: 0,
+            UploadedBlobs: Array.Empty<string>()));
+    }
+
+    private async Task<string> HandleRegister(RegisterRequestModel request, string userId)
+    {
         if (!string.IsNullOrWhiteSpace(_tableOptions.ConnectionString))
         {
             var tableClient = _tableServiceClient.GetTableClient(_tableOptions.TableName);
@@ -114,15 +130,7 @@ public sealed class QHVACController : ControllerBase
             }
         }
 
-        return Ok(new RegisterResponseModel(UserId: userId));
-    }
-
-    [HttpGet(nameof(ReceiveInspection))]   
-    public async Task<ActionResult<ReceiveInspectionResponse>> ReceiveInspectionGet(
-        [FromQuery] ReceiveInspectionRequest request)
-    {
-        await _inspectionRequestHandler.SaveRequestAsync(request, HttpContext.RequestAborted);
-        return Ok(BuildResponse(request));
+        return userId;
     }
 
     private static ReceiveInspectionResponse BuildResponse(ReceiveInspectionRequest request)
