@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Text.Json;
 using Azure;
 using Azure.Data.Tables;
@@ -158,6 +159,38 @@ public sealed class QHVACController : ControllerBase
             Files: files);
 
         return Ok(response);
+    }
+
+    [HttpGet(nameof(GetFile))]
+    public async Task<IActionResult> GetFile([FromQuery] string sessionId, [FromQuery] string fileName)
+    {
+        if (string.IsNullOrWhiteSpace(sessionId) || string.IsNullOrWhiteSpace(fileName))
+        {
+            return BadRequest("SessionId and fileName are required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(_blobOptions.ContainerName))
+        {
+            return NotFound();
+        }
+
+        var safeFileName = Path.GetFileName(fileName);
+        if (string.IsNullOrWhiteSpace(safeFileName))
+        {
+            return BadRequest("fileName is invalid.");
+        }
+
+        var containerClient = _blobServiceClient.GetBlobContainerClient("files");
+        var blobClient = containerClient.GetBlobClient($"{sessionId}-{safeFileName}");
+
+        if (!await blobClient.ExistsAsync(HttpContext.RequestAborted))
+        {
+            return NotFound();
+        }
+
+        var download = await blobClient.DownloadStreamingAsync(cancellationToken: HttpContext.RequestAborted);
+        var contentType = download.Value.Details.ContentType ?? "application/octet-stream";
+        return File(download.Value.Content, contentType, safeFileName);
     }
 
     private static async Task<InspectionPayload?> LoadInspectionPayloadAsync(
