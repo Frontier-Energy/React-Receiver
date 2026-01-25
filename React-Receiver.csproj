@@ -16,4 +16,8 @@
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.12" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Compile Remove="React-Receiver.Tests\**\*.cs" />
+  </ItemGroup>
+
 </Project>
