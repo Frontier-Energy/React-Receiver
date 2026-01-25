@@ -57,18 +57,13 @@ public sealed class QHVACController : ControllerBase
     public async Task<ActionResult<RegisterResponseModel>> Register(
         [FromBody] RegisterRequestModel request)
     {
-        var userId = string.IsNullOrWhiteSpace(request.UserId)
-            ? Guid.NewGuid().ToString("N")
-            : request.UserId;
+        var userId = Guid.NewGuid().ToString("N");
         userId = await _registerRequestHandler.HandleRegisterAsync(
             request,
             userId,
             HttpContext.RequestAborted);
 
-        return Ok(new RegisterResponseModel(
-            UserId: userId,
-            FileCount: 0,
-            UploadedBlobs: Array.Empty<string>()));
+        return Ok(new RegisterResponseModel(UserId: userId));
     }
 
 }

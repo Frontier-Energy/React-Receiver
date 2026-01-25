@@ -15,7 +15,7 @@ public sealed class RegisterRequestHandlerTests
     public async Task HandleRegisterAsync_ReturnsSameUserId_WhenConnectionStringEmpty_WithEmail()
     {
         var handler = CreateHandler();
-        var request = new RegisterRequestModel("a@example.com", "A", "B", null);
+        var request = new RegisterRequestModel("a@example.com", "A", "B");
 
         var result = await handler.HandleRegisterAsync(request, "user-1", CancellationToken.None);
 
@@ -26,7 +26,7 @@ public sealed class RegisterRequestHandlerTests
     public async Task HandleRegisterAsync_ReturnsSameUserId_WhenConnectionStringEmpty_WithoutEmail()
     {
         var handler = CreateHandler();
-        var request = new RegisterRequestModel(null, "A", "B", null);
+        var request = new RegisterRequestModel(null, "A", "B");
 
         var result = await handler.HandleRegisterAsync(request, "user-2", CancellationToken.None);
 

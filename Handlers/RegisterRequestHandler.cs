@@ -65,6 +65,11 @@ public sealed class RegisterRequestHandler : IRegisterRequestHandler
 
             if (existing is null)
             {
+                //set a default if we're nto setting from an external use. 
+                if (String.IsNullOrWhiteSpace(userId))
+                {
+                    userId=Guid.NewGuid().ToString();
+                }
                 var entity = new UserEntity
                 {
                     PartitionKey = UserEntity.PartitionKeyValue,
