@@ -31,6 +31,12 @@ Run:
 dotnet run
 ```
 
+## Swagger
+Start the app and open the Swagger UI in a browser:
+```
+http://localhost:5108/swagger
+```
+
 ## Test ReceiveInspection (POST)
 The ReceiveInspection endpoint expects `multipart/form-data` with a JSON payload field
 and optional file uploads.
