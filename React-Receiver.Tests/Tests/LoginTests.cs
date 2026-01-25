@@ -1,9 +1,13 @@
 using System;
+using Azure.Data.Tables;
+using Azure.Storage.Blobs;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 using React_Receiver.Controllers;
 using React_Receiver.Handlers;
 using React_Receiver.Models;
+using React_Receiver.Services;
 using Xunit;
 
 namespace React_Receiver.Tests;
@@ -28,7 +32,11 @@ public sealed class LoginTests
             new FakeInspectionRequestHandler(),
             new FakeLoginRequestHandler(),
             new ReceiveInspectionRequestParser(),
-            new FakeRegisterRequestHandler())
+            new FakeRegisterRequestHandler(),
+            new BlobServiceClient("UseDevelopmentStorage=true"),
+            new TableServiceClient("UseDevelopmentStorage=true"),
+            Options.Create(new BlobStorageOptions()),
+            Options.Create(new TableStorageOptions()))
         {
             ControllerContext = new ControllerContext
             {

@@ -1,8 +1,14 @@
 using System;
+using System.Text.Json;
+using Azure;
+using Azure.Data.Tables;
+using Azure.Storage.Blobs;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 using React_Receiver.Handlers;
 using React_Receiver.Models;
+using React_Receiver.Services;
 
 namespace React_Receiver.Controllers;
 
@@ -14,17 +20,29 @@ public sealed class QHVACController : ControllerBase
     private readonly ILoginRequestHandler _loginRequestHandler;
     private readonly IReceiveInspectionRequestParser _receiveInspectionRequestParser;
     private readonly IRegisterRequestHandler _registerRequestHandler;
+    private readonly BlobServiceClient _blobServiceClient;
+    private readonly TableServiceClient _tableServiceClient;
+    private readonly BlobStorageOptions _blobOptions;
+    private readonly TableStorageOptions _tableOptions;
 
     public QHVACController(
         IInspectionRequestHandler inspectionRequestHandler,
         ILoginRequestHandler loginRequestHandler,
         IReceiveInspectionRequestParser receiveInspectionRequestParser,
-        IRegisterRequestHandler registerRequestHandler)
+        IRegisterRequestHandler registerRequestHandler,
+        BlobServiceClient blobServiceClient,
+        TableServiceClient tableServiceClient,
+        IOptions<BlobStorageOptions> blobOptions,
+        IOptions<TableStorageOptions> tableOptions)
     {
         _inspectionRequestHandler = inspectionRequestHandler;
         _loginRequestHandler = loginRequestHandler;
         _receiveInspectionRequestParser = receiveInspectionRequestParser;
         _registerRequestHandler = registerRequestHandler;
+        _blobServiceClient = blobServiceClient;
+        _tableServiceClient = tableServiceClient;
+        _blobOptions = blobOptions.Value;
+        _tableOptions = tableOptions.Value;
     }
 
     [HttpPost(nameof(ReceiveInspection))] //prod point
@@ -66,4 +84,100 @@ public sealed class QHVACController : ControllerBase
         return Ok(new RegisterResponseModel(UserId: userId));
     }
 
+    [HttpGet(nameof(GetInspection))]
+    public async Task<ActionResult<GetInspectionResponse>> GetInspection([FromQuery] string sessionId)
+    {
+        if (string.IsNullOrWhiteSpace(sessionId))
+        {
+            return BadRequest("SessionId is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(_blobOptions.ContainerName))
+        {
+            return NotFound();
+        }
+
+        var containerClient = _blobServiceClient.GetBlobContainerClient(_blobOptions.ContainerName);
+        var blobClient = containerClient.GetBlobClient($"{sessionId}.json");
+
+        if (!await blobClient.ExistsAsync(HttpContext.RequestAborted))
+        {
+            return NotFound();
+        }
+
+        var payload = await LoadInspectionPayloadAsync(blobClient, HttpContext.RequestAborted);
+        if (payload is null)
+        {
+            return NotFound();
+        }
+
+        var files = await LoadInspectionFilesAsync(sessionId, HttpContext.RequestAborted);
+
+        var response = new GetInspectionResponse(
+            SessionId: payload.SessionId ?? sessionId,
+            UserId: payload.UserId,
+            Name: payload.Name,
+            QueryParams: payload.QueryParams ?? new Dictionary<string, string>(),
+            Files: files);
+
+        return Ok(response);
+    }
+
+    private static async Task<InspectionPayload?> LoadInspectionPayloadAsync(
+        BlobClient blobClient,
+        CancellationToken cancellationToken)
+    {
+        var download = await blobClient.DownloadContentAsync(cancellationToken);
+        if (download.Value.Content.ToMemory().Length == 0)
+        {
+            return null;
+        }
+
+        return JsonSerializer.Deserialize<InspectionPayload>(
+            download.Value.Content.ToString(),
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+    }
+
+    private async Task<InspectionFileReference[]> LoadInspectionFilesAsync(
+        string sessionId,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(_tableOptions.InspectionFilesTableName))
+        {
+            return Array.Empty<InspectionFileReference>();
+        }
+
+        var tableClient = _tableServiceClient.GetTableClient(_tableOptions.InspectionFilesTableName);
+
+        try
+        {
+            var response = await tableClient.GetEntityAsync<InspectionFilesEntity>(
+                InspectionFilesEntity.PartitionKeyValue,
+                sessionId,
+                cancellationToken: cancellationToken);
+
+            if (string.IsNullOrWhiteSpace(response.Value.Files))
+            {
+                return Array.Empty<InspectionFileReference>();
+            }
+
+            var files = JsonSerializer.Deserialize<InspectionFileReference[]>(
+                response.Value.Files,
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+            return files ?? Array.Empty<InspectionFileReference>();
+        }
+        catch (RequestFailedException ex) when (ex.Status == 404)
+        {
+            return Array.Empty<InspectionFileReference>();
+        }
+    }
+
+    private sealed class InspectionPayload
+    {
+        public string? SessionId { get; set; }
+        public string? UserId { get; set; }
+        public string? Name { get; set; }
+        public Dictionary<string, string>? QueryParams { get; set; }
+    }
 }
