@@ -84,6 +84,43 @@ public sealed class QHVACController : ControllerBase
         return Ok(new RegisterResponseModel(UserId: userId));
     }
 
+    [HttpPost(nameof(GetUser))]
+    public async Task<ActionResult<GetUserResponse>> GetUser([FromBody] GetUserRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.UserId))
+        {
+            return BadRequest("UserId is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(_tableOptions.TableName))
+        {
+            return NotFound();
+        }
+
+        var tableClient = _tableServiceClient.GetTableClient(_tableOptions.TableName);
+
+        try
+        {
+            var response = await tableClient.GetEntityAsync<UserEntity>(
+                UserEntity.PartitionKeyValue,
+                request.UserId,
+                cancellationToken: HttpContext.RequestAborted);
+
+            var entity = response.Value;
+            var user = new UserModel(
+                UserId: entity.UserId,
+                Email: entity.Email,
+                FirstName: entity.FirstName,
+                LastName: entity.LastName);
+
+            return Ok(new GetUserResponse(User: user));
+        }
+        catch (RequestFailedException ex) when (ex.Status == 404)
+        {
+            return NotFound();
+        }
+    }
+
     [HttpGet(nameof(GetInspection))]
     public async Task<ActionResult<GetInspectionResponse>> GetInspection([FromQuery] string sessionId)
     {
