@@ -24,7 +24,10 @@ public sealed class LoginTests
 
     private static QHVACController CreateController()
     {
-        var controller = new QHVACController(new FakeInspectionRequestHandler(), new FakeRegisterRequestHandler())
+        var controller = new QHVACController(
+            new FakeInspectionRequestHandler(),
+            new FakeLoginRequestHandler(),
+            new FakeRegisterRequestHandler())
         {
             ControllerContext = new ControllerContext
             {
@@ -37,9 +40,25 @@ public sealed class LoginTests
 
     private sealed class FakeInspectionRequestHandler : IInspectionRequestHandler
     {
-        public Task SaveRequestAsync(ReceiveInspectionRequest request, CancellationToken cancellationToken)
+        public Task<ReceiveInspectionResponse> SaveRequestAsync(
+            ReceiveInspectionRequest request,
+            CancellationToken cancellationToken)
         {
-            return Task.CompletedTask;
+            var response = new ReceiveInspectionResponse(
+                Status: "Received",
+                SessionId: request.SessionId ?? string.Empty,
+                Name: request.Name ?? string.Empty,
+                QueryParams: request.QueryParams ?? new Dictionary<string, string>(),
+                Message: "OK");
+            return Task.FromResult(response);
+        }
+    }
+
+    private sealed class FakeLoginRequestHandler : ILoginRequestHandler
+    {
+        public LoginRequestResponse HandleLogin(LoginRequestCommand request)
+        {
+            return new LoginRequestResponse(UserId: Guid.NewGuid().ToString("N"));
         }
     }
 

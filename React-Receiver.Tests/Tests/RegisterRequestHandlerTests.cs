@@ -39,4 +39,5 @@ public sealed class RegisterRequestHandlerTests
         var options = Options.Create(new TableStorageOptions { ConnectionString = string.Empty });
         return new RegisterRequestHandler(tableClient, options);
     }
+
 }

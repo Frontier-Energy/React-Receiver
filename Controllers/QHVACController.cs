@@ -13,13 +13,16 @@ public sealed class QHVACController : ControllerBase
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly IInspectionRequestHandler _inspectionRequestHandler;
+    private readonly ILoginRequestHandler _loginRequestHandler;
     private readonly IRegisterRequestHandler _registerRequestHandler;
 
     public QHVACController(
         IInspectionRequestHandler inspectionRequestHandler,
+        ILoginRequestHandler loginRequestHandler,
         IRegisterRequestHandler registerRequestHandler)
     {
         _inspectionRequestHandler = inspectionRequestHandler;
+        _loginRequestHandler = loginRequestHandler;
         _registerRequestHandler = registerRequestHandler;
     }
 
@@ -34,21 +37,18 @@ public sealed class QHVACController : ControllerBase
             return BadRequest("Invalid payload JSON.");
         }
 
-        await _inspectionRequestHandler.SaveRequestAsync(request, HttpContext.RequestAborted);
-        return Ok(BuildResponse(request));
+        var response = await _inspectionRequestHandler.SaveRequestAsync(
+            request,
+            HttpContext.RequestAborted);
+        return Ok(response);
     }
 
     [HttpPost(nameof(Login))]
     public ActionResult<LoginRequestResponse> Login(
         [FromBody] LoginRequestCommand request)
     {
-        LoginRequestResponse response = HandleLogin(request);
+        LoginRequestResponse response = _loginRequestHandler.HandleLogin(request);
         return Ok(response);
-    }
-
-    private static LoginRequestResponse HandleLogin( LoginRequestCommand request)
-    {
-        return new LoginRequestResponse(UserId: Guid.NewGuid().ToString("N"));
     }
 
 
@@ -68,18 +68,6 @@ public sealed class QHVACController : ControllerBase
             UserId: userId,
             FileCount: 0,
             UploadedBlobs: Array.Empty<string>()));
-    }
-
-    private static ReceiveInspectionResponse BuildResponse(ReceiveInspectionRequest request)
-    {
-        var queryParams = request.QueryParams ?? new Dictionary<string, string>();
-
-        return new ReceiveInspectionResponse(
-            Status: "Received",
-            SessionId: request.SessionId ?? string.Empty,
-            Name: request.Name ?? string.Empty,
-            QueryParams: queryParams,
-            Message: "OK");
     }
 
     private static bool TryParseFormRequest(

@@ -26,6 +26,7 @@ builder.Services.AddSingleton(sp =>
     return new Azure.Data.Tables.TableServiceClient(options.ConnectionString);
 });
 builder.Services.AddSingleton<React_Receiver.Handlers.IInspectionRequestHandler, React_Receiver.Handlers.InspectionRequestHandler>();
+builder.Services.AddSingleton<React_Receiver.Handlers.ILoginRequestHandler, React_Receiver.Handlers.LoginRequestHandler>();
 builder.Services.AddSingleton<React_Receiver.Handlers.IRegisterRequestHandler, React_Receiver.Handlers.RegisterRequestHandler>();
 
 var app = builder.Build();

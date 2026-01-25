@@ -11,7 +11,9 @@ namespace React_Receiver.Handlers;
 
 public interface IInspectionRequestHandler
 {
-    Task SaveRequestAsync(ReceiveInspectionRequest request, CancellationToken cancellationToken);
+    Task<ReceiveInspectionResponse> SaveRequestAsync(
+        ReceiveInspectionRequest request,
+        CancellationToken cancellationToken);
 }
 
 public sealed class InspectionRequestHandler : IInspectionRequestHandler
@@ -40,7 +42,9 @@ public sealed class InspectionRequestHandler : IInspectionRequestHandler
         _tableOptions = tableOptions.Value;
     }
 
-    public async Task SaveRequestAsync(ReceiveInspectionRequest request, CancellationToken cancellationToken)
+    public async Task<ReceiveInspectionResponse> SaveRequestAsync(
+        ReceiveInspectionRequest request,
+        CancellationToken cancellationToken)
     {
         if (!string.IsNullOrWhiteSpace(_blobOptions.ContainerName))
         {
@@ -74,6 +78,20 @@ public sealed class InspectionRequestHandler : IInspectionRequestHandler
         await SaveInspectionFilesMetadataAsync(request, cancellationToken);
 
         await SendQueueMessageAsync(request, cancellationToken);
+
+        return BuildResponse(request);
+    }
+
+    private static ReceiveInspectionResponse BuildResponse(ReceiveInspectionRequest request)
+    {
+        var queryParams = request.QueryParams ?? new Dictionary<string, string>();
+
+        return new ReceiveInspectionResponse(
+            Status: "Received",
+            SessionId: request.SessionId ?? string.Empty,
+            Name: request.Name ?? string.Empty,
+            QueryParams: queryParams,
+            Message: "OK");
     }
 
     private async Task SaveFilesAsync(ReceiveInspectionRequest request, CancellationToken cancellationToken)
