@@ -18,7 +18,7 @@ public interface IInspectionRequestHandler
 
 public sealed class InspectionRequestHandler : IInspectionRequestHandler
 {
-    private const string FilesContainerName = "Files";
+    private const string FilesContainerName = "files";
     private readonly BlobServiceClient _blobServiceClient;
     private readonly QueueServiceClient _queueServiceClient;
     private readonly TableServiceClient _tableServiceClient;
