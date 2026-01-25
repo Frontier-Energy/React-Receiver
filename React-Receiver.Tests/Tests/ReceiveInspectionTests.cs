@@ -2,14 +2,11 @@ using System.IO;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using Azure.Data.Tables;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Options;
 using React_Receiver.Controllers;
 using React_Receiver.Handlers;
 using React_Receiver.Models;
-using React_Receiver.Services;
 using Xunit;
 
 namespace React_Receiver.Tests;
@@ -70,9 +67,7 @@ public sealed class ReceiveInspectionTests
 
     private static QHVACController CreateController(FakeInspectionRequestHandler handler)
     {
-        var tableClient = new TableServiceClient("UseDevelopmentStorage=true");
-        var options = Options.Create(new TableStorageOptions { ConnectionString = string.Empty });
-        var controller = new QHVACController(handler, tableClient, options)
+        var controller = new QHVACController(handler, new FakeRegisterRequestHandler())
         {
             ControllerContext = new ControllerContext
             {
@@ -102,6 +97,17 @@ public sealed class ReceiveInspectionTests
             LastRequest = request;
             LastToken = cancellationToken;
             return Task.CompletedTask;
+        }
+    }
+
+    private sealed class FakeRegisterRequestHandler : IRegisterRequestHandler
+    {
+        public Task<string> HandleRegisterAsync(
+            RegisterRequestModel request,
+            string userId,
+            CancellationToken cancellationToken)
+        {
+            return Task.FromResult(userId);
         }
     }
 }

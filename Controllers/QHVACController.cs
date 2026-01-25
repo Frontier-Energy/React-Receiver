@@ -1,12 +1,9 @@
 using System;
 using System.Text.Json;
-using Azure;
-using Azure.Data.Tables;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using React_Receiver.Handlers;
 using React_Receiver.Models;
-using React_Receiver.Services;
 
 namespace React_Receiver.Controllers;
 
@@ -16,17 +13,14 @@ public sealed class QHVACController : ControllerBase
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly IInspectionRequestHandler _inspectionRequestHandler;
-    private readonly TableServiceClient _tableServiceClient;
-    private readonly TableStorageOptions _tableOptions;
+    private readonly IRegisterRequestHandler _registerRequestHandler;
 
     public QHVACController(
         IInspectionRequestHandler inspectionRequestHandler,
-        TableServiceClient tableServiceClient,
-        Microsoft.Extensions.Options.IOptions<TableStorageOptions> tableOptions)
+        IRegisterRequestHandler registerRequestHandler)
     {
         _inspectionRequestHandler = inspectionRequestHandler;
-        _tableServiceClient = tableServiceClient;
-        _tableOptions = tableOptions.Value;
+        _registerRequestHandler = registerRequestHandler;
     }
 
     [HttpPost(nameof(ReceiveInspection))] //prod point
@@ -65,72 +59,15 @@ public sealed class QHVACController : ControllerBase
         var userId = string.IsNullOrWhiteSpace(request.UserId)
             ? Guid.NewGuid().ToString("N")
             : request.UserId;
-        userId = await HandleRegister(request, userId);
+        userId = await _registerRequestHandler.HandleRegisterAsync(
+            request,
+            userId,
+            HttpContext.RequestAborted);
 
         return Ok(new RegisterResponseModel(
             UserId: userId,
             FileCount: 0,
             UploadedBlobs: Array.Empty<string>()));
-    }
-
-    private async Task<string> HandleRegister(RegisterRequestModel request, string userId)
-    {
-        if (!string.IsNullOrWhiteSpace(_tableOptions.ConnectionString))
-        {
-            var tableClient = _tableServiceClient.GetTableClient(_tableOptions.TableName);
-            await tableClient.CreateIfNotExistsAsync(cancellationToken: HttpContext.RequestAborted);
-
-            UserEntity? existing = null;
-            if (!string.IsNullOrWhiteSpace(request.Email))
-            {
-                var filter = TableClient.CreateQueryFilter<UserEntity>(entity =>
-                    entity.PartitionKey == UserEntity.PartitionKeyValue &&
-                    entity.Email == request.Email);
-                await foreach (var entity in tableClient.QueryAsync<UserEntity>(
-                    filter: filter,
-                    cancellationToken: HttpContext.RequestAborted))
-                {
-                    existing = entity;
-                    break;
-                }
-            }
-            else
-            {
-                try
-                {
-                    var response = await tableClient.GetEntityAsync<UserEntity>(
-                        UserEntity.PartitionKeyValue,
-                        userId,
-                        cancellationToken: HttpContext.RequestAborted);
-                    existing = response.Value;
-                }
-                catch (RequestFailedException ex) when (ex.Status == 404)
-                {
-                    existing = null;
-                }
-            }
-
-            if (existing is null)
-            {
-                var entity = new UserEntity
-                {
-                    PartitionKey = UserEntity.PartitionKeyValue,
-                    RowKey = userId,
-                    UserId = userId,
-                    Email = request.Email,
-                    FirstName = request.FirstName,
-                    LastName = request.LastName
-                };
-
-                await tableClient.AddEntityAsync(entity, HttpContext.RequestAborted);
-            }
-            else
-            {
-                userId = existing.UserId;
-            }
-        }
-
-        return userId;
     }
 
     private static ReceiveInspectionResponse BuildResponse(ReceiveInspectionRequest request)
