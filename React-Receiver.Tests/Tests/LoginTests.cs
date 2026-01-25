@@ -27,6 +27,7 @@ public sealed class LoginTests
         var controller = new QHVACController(
             new FakeInspectionRequestHandler(),
             new FakeLoginRequestHandler(),
+            new ReceiveInspectionRequestParser(),
             new FakeRegisterRequestHandler())
         {
             ControllerContext = new ControllerContext

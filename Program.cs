@@ -27,6 +27,7 @@ builder.Services.AddSingleton(sp =>
 });
 builder.Services.AddSingleton<React_Receiver.Handlers.IInspectionRequestHandler, React_Receiver.Handlers.InspectionRequestHandler>();
 builder.Services.AddSingleton<React_Receiver.Handlers.ILoginRequestHandler, React_Receiver.Handlers.LoginRequestHandler>();
+builder.Services.AddSingleton<React_Receiver.Handlers.IReceiveInspectionRequestParser, React_Receiver.Handlers.ReceiveInspectionRequestParser>();
 builder.Services.AddSingleton<React_Receiver.Handlers.IRegisterRequestHandler, React_Receiver.Handlers.RegisterRequestHandler>();
 
 var app = builder.Build();

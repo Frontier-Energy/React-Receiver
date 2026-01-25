@@ -70,6 +70,7 @@ public sealed class ReceiveInspectionTests
         var controller = new QHVACController(
             handler,
             new FakeLoginRequestHandler(),
+            new ReceiveInspectionRequestParser(),
             new FakeRegisterRequestHandler())
         {
             ControllerContext = new ControllerContext
