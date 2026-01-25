@@ -9,7 +9,12 @@ using React_Receiver.Services;
 
 namespace React_Receiver.Handlers;
 
-public sealed class InspectionRequestHandler
+public interface IInspectionRequestHandler
+{
+    Task SaveRequestAsync(ReceiveInspectionRequest request, CancellationToken cancellationToken);
+}
+
+public sealed class InspectionRequestHandler : IInspectionRequestHandler
 {
     private const string FilesContainerName = "Files";
     private readonly BlobServiceClient _blobServiceClient;

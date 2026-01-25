@@ -15,12 +15,12 @@ namespace React_Receiver.Controllers;
 public sealed class QHVACController : ControllerBase
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
-    private readonly InspectionRequestHandler _inspectionRequestHandler;
+    private readonly IInspectionRequestHandler _inspectionRequestHandler;
     private readonly TableServiceClient _tableServiceClient;
     private readonly TableStorageOptions _tableOptions;
 
     public QHVACController(
-        InspectionRequestHandler inspectionRequestHandler,
+        IInspectionRequestHandler inspectionRequestHandler,
         TableServiceClient tableServiceClient,
         Microsoft.Extensions.Options.IOptions<TableStorageOptions> tableOptions)
     {

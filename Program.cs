@@ -25,7 +25,7 @@ builder.Services.AddSingleton(sp =>
     var options = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<React_Receiver.Services.TableStorageOptions>>().Value;
     return new Azure.Data.Tables.TableServiceClient(options.ConnectionString);
 });
-builder.Services.AddSingleton<React_Receiver.Handlers.InspectionRequestHandler>();
+builder.Services.AddSingleton<React_Receiver.Handlers.IInspectionRequestHandler, React_Receiver.Handlers.InspectionRequestHandler>();
 
 var app = builder.Build();
 
