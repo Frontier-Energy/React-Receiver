@@ -1,6 +1,6 @@
 @React_Receiver_HostAddress = http://localhost:5108
 
-GET {{React_Receiver_HostAddress}}/weatherforecast/
+GET {{React_Receiver_HostAddress}}/QHVAC/tenant-config
 Accept: application/json
 
 ###

@@ -37,6 +37,33 @@ Start the app and open the Swagger UI in a browser:
 http://localhost:5108/swagger
 ```
 
+## Tenant Config (GET)
+```http
+GET /QHVAC/tenant-config
+```
+
+Example response:
+```json
+{
+  "tenantId": "qhvac",
+  "displayName": "QHVAC",
+  "uiDefaults": {
+    "theme": "harbor",
+    "font": "Tahoma, \"Trebuchet MS\", Arial, sans-serif",
+    "language": "en",
+    "showLeftFlyout": true,
+    "showRightFlyout": true,
+    "showInspectionStatsButton": false
+  },
+  "enabledForms": [
+    "electrical",
+    "electrical-sf",
+    "hvac"
+  ],
+  "loginRequired": true
+}
+```
+
 ## Test ReceiveInspection (POST)
 The ReceiveInspection endpoint expects `multipart/form-data` with a JSON payload field
 and optional file uploads.

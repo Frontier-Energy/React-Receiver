@@ -193,6 +193,23 @@ public sealed class QHVACController : ControllerBase
         return File(download.Value.Content, contentType, safeFileName);
     }
 
+    [HttpGet("tenant-config")]
+    public ActionResult<TenantBootstrapResponse> GetTenantConfig()
+    {
+        return Ok(new TenantBootstrapResponse(
+            TenantId: "qhvac",
+            DisplayName: "QHVAC",
+            UiDefaults: new UiDefaults(
+                Theme: "harbor",
+                Font: "Tahoma, \"Trebuchet MS\", Arial, sans-serif",
+                Language: "en",
+                ShowLeftFlyout: true,
+                ShowRightFlyout: true,
+                ShowInspectionStatsButton: false),
+            EnabledForms: ["electrical", "electrical-sf", "hvac"],
+            LoginRequired: true));
+    }
+
     private static async Task<InspectionPayload?> LoadInspectionPayloadAsync(
         BlobClient blobClient,
         CancellationToken cancellationToken)

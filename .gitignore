@@ -2,3 +2,5 @@
 /obj
 /React-Receiver.Tests/obj
 /React-Receiver.Tests/bin
+/.nuget
+/.dotnet
