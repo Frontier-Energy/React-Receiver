@@ -23,33 +23,18 @@ public sealed class FormSchemasController : ControllerBase
     }
 
     [HttpGet("{formType}")]
-    public async Task<ActionResult<FormSchemaResponse>> GetFormSchema([FromRoute] string formType)
+    public async Task<ActionResult<FormSchemaResponse>> GetFormSchema([FromRoute] FormSchemaRouteRequest request)
     {
-        if (string.IsNullOrWhiteSpace(formType))
-        {
-            return BadRequest("formType is required.");
-        }
-
-        var response = await _formSchemaService.GetAsync(formType, HttpContext.RequestAborted);
+        var response = await _formSchemaService.GetAsync(request.FormType!, HttpContext.RequestAborted);
         return response is null ? NotFound() : Ok(response);
     }
 
     [HttpPut("{formType}")]
     public async Task<ActionResult<FormSchemaResponse>> UpsertFormSchema(
-        [FromRoute] string formType,
+        [FromRoute] FormSchemaRouteRequest routeRequest,
         [FromBody] FormSchemaResponse request)
     {
-        if (string.IsNullOrWhiteSpace(formType))
-        {
-            return BadRequest("formType is required.");
-        }
-
-        if (request is null || string.IsNullOrWhiteSpace(request.FormName) || request.Sections is null)
-        {
-            return BadRequest("A valid form schema payload is required.");
-        }
-
-        var response = await _formSchemaService.UpsertAsync(formType, request, HttpContext.RequestAborted);
+        var response = await _formSchemaService.UpsertAsync(routeRequest.FormType!, request, HttpContext.RequestAborted);
         return response is null ? NotFound() : Ok(response);
     }
 }

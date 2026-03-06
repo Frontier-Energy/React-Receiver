@@ -1,10 +1,19 @@
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using React_Receiver.Services;
+using React_Receiver.Validation;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
-builder.Services.AddControllers();
+builder.Services.AddScoped<RequestValidationFilter>();
+builder.Services.AddControllers(options =>
+    {
+        options.Filters.AddService<RequestValidationFilter>();
+    })
+    .ConfigureApiBehaviorOptions(options =>
+    {
+        options.SuppressModelStateInvalidFilter = true;
+    });
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
@@ -63,6 +72,7 @@ builder.Services.AddSingleton<IInspectionQueryService, InspectionQueryService>()
 builder.Services.AddSingleton<IUserQueryService, UserQueryService>();
 builder.Services.AddSingleton<IFormSchemaService, FormSchemaService>();
 builder.Services.AddSingleton<ITranslationService, TranslationService>();
+builder.Services.AddRequestValidation();
 builder.Services.AddHostedService<StartupHealthCheckHostedService>();
 builder.Services.AddHostedService<BootstrapDataHostedService>();
 

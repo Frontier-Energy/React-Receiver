@@ -26,39 +26,31 @@ public sealed class InspectionsController : ControllerBase
     [HttpPost]
     [Consumes("multipart/form-data")]
     public async Task<ActionResult<ReceiveInspectionResponse>> ReceiveInspection(
-        [FromForm] string? payload,
-        [FromForm] IFormFile[]? files)
+        [FromForm] ReceiveInspectionFormRequest request)
     {
-        if (!_receiveInspectionRequestParser.TryParseFormRequest(payload, files, out var request))
+        if (!_receiveInspectionRequestParser.TryParseFormRequest(request.Payload, request.Files, out var parsedRequest))
         {
             return BadRequest("Invalid payload JSON.");
         }
 
-        var response = await _inspectionRequestHandler.SaveRequestAsync(request, HttpContext.RequestAborted);
+        var response = await _inspectionRequestHandler.SaveRequestAsync(parsedRequest, HttpContext.RequestAborted);
         return Ok(response);
     }
 
     [HttpGet("{sessionId}")]
-    public async Task<ActionResult<GetInspectionResponse>> GetInspection([FromRoute] string sessionId)
+    public async Task<ActionResult<GetInspectionResponse>> GetInspection([FromRoute] GetInspectionRequest request)
     {
-        if (string.IsNullOrWhiteSpace(sessionId))
-        {
-            return BadRequest("SessionId is required.");
-        }
-
-        var response = await _inspectionQueryService.GetInspectionAsync(sessionId, HttpContext.RequestAborted);
+        var response = await _inspectionQueryService.GetInspectionAsync(request.SessionId!, HttpContext.RequestAborted);
         return response is null ? NotFound() : Ok(response);
     }
 
     [HttpGet("{sessionId}/files/{fileName}")]
-    public async Task<IActionResult> GetFile([FromRoute] string sessionId, [FromRoute] string fileName)
+    public async Task<IActionResult> GetFile([FromRoute] GetInspectionFileRequest request)
     {
-        if (string.IsNullOrWhiteSpace(sessionId) || string.IsNullOrWhiteSpace(fileName))
-        {
-            return BadRequest("SessionId and fileName are required.");
-        }
-
-        var response = await _inspectionQueryService.GetFileAsync(sessionId, fileName, HttpContext.RequestAborted);
+        var response = await _inspectionQueryService.GetFileAsync(
+            request.SessionId!,
+            request.FileName!,
+            HttpContext.RequestAborted);
         return response is null
             ? NotFound()
             : File(response.Content, response.ContentType, response.FileName);

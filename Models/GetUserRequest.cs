@@ -1,5 +1,7 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace React_Receiver.Models;
 
 public sealed record GetUserRequest(
-    string UserId
+    [property: Required(AllowEmptyStrings = false)] string? UserId
 );

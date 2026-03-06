@@ -54,15 +54,14 @@ public sealed class QHVACController : ControllerBase
     [HttpPost(nameof(ReceiveInspection))]
     [Consumes("multipart/form-data")]
     public async Task<ActionResult<ReceiveInspectionResponse>> ReceiveInspection(
-        [FromForm] string? payload,
-        [FromForm] IFormFile[]? files)
+        [FromForm] ReceiveInspectionFormRequest request)
     {
-        if (!_receiveInspectionRequestParser.TryParseFormRequest(payload, files, out var request))
+        if (!_receiveInspectionRequestParser.TryParseFormRequest(request.Payload, request.Files, out var parsedRequest))
         {
             return BadRequest("Invalid payload JSON.");
         }
 
-        var response = await _inspectionRequestHandler.SaveRequestAsync(request, HttpContext.RequestAborted);
+        var response = await _inspectionRequestHandler.SaveRequestAsync(parsedRequest, HttpContext.RequestAborted);
         return Ok(response);
     }
 
@@ -88,36 +87,24 @@ public sealed class QHVACController : ControllerBase
     [HttpPost(nameof(GetUser))]
     public async Task<ActionResult<GetUserResponse>> GetUser([FromBody] GetUserRequest request)
     {
-        if (string.IsNullOrWhiteSpace(request.UserId))
-        {
-            return BadRequest("UserId is required.");
-        }
-
-        var response = await _userQueryService.GetUserAsync(request.UserId, HttpContext.RequestAborted);
+        var response = await _userQueryService.GetUserAsync(request.UserId!, HttpContext.RequestAborted);
         return response is null ? NotFound() : Ok(response);
     }
 
     [HttpGet(nameof(GetInspection))]
-    public async Task<ActionResult<GetInspectionResponse>> GetInspection([FromQuery] string sessionId)
+    public async Task<ActionResult<GetInspectionResponse>> GetInspection([FromQuery] GetInspectionRequest request)
     {
-        if (string.IsNullOrWhiteSpace(sessionId))
-        {
-            return BadRequest("SessionId is required.");
-        }
-
-        var response = await _inspectionQueryService.GetInspectionAsync(sessionId, HttpContext.RequestAborted);
+        var response = await _inspectionQueryService.GetInspectionAsync(request.SessionId!, HttpContext.RequestAborted);
         return response is null ? NotFound() : Ok(response);
     }
 
     [HttpGet(nameof(GetFile))]
-    public async Task<IActionResult> GetFile([FromQuery] string sessionId, [FromQuery] string fileName)
+    public async Task<IActionResult> GetFile([FromQuery] GetInspectionFileRequest request)
     {
-        if (string.IsNullOrWhiteSpace(sessionId) || string.IsNullOrWhiteSpace(fileName))
-        {
-            return BadRequest("SessionId and fileName are required.");
-        }
-
-        var response = await _inspectionQueryService.GetFileAsync(sessionId, fileName, HttpContext.RequestAborted);
+        var response = await _inspectionQueryService.GetFileAsync(
+            request.SessionId!,
+            request.FileName!,
+            HttpContext.RequestAborted);
         return response is null
             ? NotFound()
             : File(response.Content, response.ContentType, response.FileName);

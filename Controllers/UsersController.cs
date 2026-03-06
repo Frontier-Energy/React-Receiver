@@ -18,12 +18,7 @@ public sealed class UsersController : ControllerBase
     [HttpPost("lookup")]
     public async Task<ActionResult<GetUserResponse>> GetUser([FromBody] GetUserRequest request)
     {
-        if (string.IsNullOrWhiteSpace(request.UserId))
-        {
-            return BadRequest("UserId is required.");
-        }
-
-        var response = await _userQueryService.GetUserAsync(request.UserId, HttpContext.RequestAborted);
+        var response = await _userQueryService.GetUserAsync(request.UserId!, HttpContext.RequestAborted);
         return response is null ? NotFound() : Ok(response);
     }
 

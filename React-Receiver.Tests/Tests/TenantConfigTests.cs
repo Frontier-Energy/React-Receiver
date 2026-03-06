@@ -14,7 +14,7 @@ public sealed class TenantConfigTests
     {
         var controller = CreateController();
 
-        var result = await controller.GetTenantConfig(null);
+        var result = await controller.GetTenantConfig(new TenantConfigQueryRequest());
 
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         var response = Assert.IsType<TenantBootstrapResponse>(ok.Value);
@@ -35,7 +35,7 @@ public sealed class TenantConfigTests
     {
         var controller = CreateController();
 
-        var result = await controller.GetTenantConfig("unknown");
+        var result = await controller.GetTenantConfig(new TenantConfigQueryRequest { TenantId = "unknown" });
 
         Assert.IsType<NotFoundResult>(result.Result);
     }

@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -5,8 +6,10 @@ namespace React_Receiver.Models;
 
 public sealed class TranslationsResponse
 {
+    [Required(AllowEmptyStrings = false)]
     public string? LanguageName { get; set; }
     public CommonTranslations? Common { get; set; }
+    [Required]
     public AppTranslations? App { get; set; }
     public NavTranslations? Nav { get; set; }
     public DrawersTranslations? Drawers { get; set; }

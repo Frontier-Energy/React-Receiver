@@ -16,33 +16,18 @@ public sealed class TranslationsController : ControllerBase
     }
 
     [HttpGet("{language}")]
-    public async Task<ActionResult<TranslationsResponse>> GetTranslations([FromRoute] string language)
+    public async Task<ActionResult<TranslationsResponse>> GetTranslations([FromRoute] TranslationLanguageRequest request)
     {
-        if (string.IsNullOrWhiteSpace(language))
-        {
-            return BadRequest("language is required.");
-        }
-
-        var response = await _translationService.GetAsync(language, HttpContext.RequestAborted);
+        var response = await _translationService.GetAsync(request.Language!, HttpContext.RequestAborted);
         return response is null ? NotFound() : Ok(response);
     }
 
     [HttpPut("{language}")]
     public async Task<ActionResult<TranslationsResponse>> UpsertTranslations(
-        [FromRoute] string language,
+        [FromRoute] TranslationLanguageRequest routeRequest,
         [FromBody] TranslationsResponse request)
     {
-        if (string.IsNullOrWhiteSpace(language))
-        {
-            return BadRequest("language is required.");
-        }
-
-        if (request is null || string.IsNullOrWhiteSpace(request.LanguageName) || request.App is null)
-        {
-            return BadRequest("A valid translations payload is required.");
-        }
-
-        var response = await _translationService.UpsertAsync(language, request, HttpContext.RequestAborted);
+        var response = await _translationService.UpsertAsync(routeRequest.Language!, request, HttpContext.RequestAborted);
         return response is null ? NotFound() : Ok(response);
     }
 }

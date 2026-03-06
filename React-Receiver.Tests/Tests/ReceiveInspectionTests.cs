@@ -23,7 +23,7 @@ public sealed class ReceiveInspectionTests
         var handler = new FakeInspectionRequestHandler();
         var controller = CreateController(handler);
 
-        var result = await controller.ReceiveInspection("not json", null);
+        var result = await controller.ReceiveInspection(new ReceiveInspectionFormRequest("not json", null));
 
         var badRequest = Assert.IsType<BadRequestObjectResult>(result.Result);
         Assert.Equal("Invalid payload JSON.", badRequest.Value);
@@ -36,7 +36,7 @@ public sealed class ReceiveInspectionTests
         var handler = new FakeInspectionRequestHandler();
         var controller = CreateController(handler);
 
-        var result = await controller.ReceiveInspection(null, null);
+        var result = await controller.ReceiveInspection(new ReceiveInspectionFormRequest(null, null));
 
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         var response = Assert.IsType<ReceiveInspectionResponse>(ok.Value);
@@ -57,7 +57,7 @@ public sealed class ReceiveInspectionTests
         var files = new[] { CreateFormFile("inspection.txt", "hello") };
         var payload = "{\"sessionId\":\"session-1\",\"userId\":\"user-1\",\"name\":\"Sample\",\"queryParams\":{\"a\":\"b\"}}";
 
-        var result = await controller.ReceiveInspection(payload, files);
+        var result = await controller.ReceiveInspection(new ReceiveInspectionFormRequest(payload, files));
 
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         var response = Assert.IsType<ReceiveInspectionResponse>(ok.Value);

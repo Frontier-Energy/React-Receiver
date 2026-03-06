@@ -46,7 +46,7 @@ public sealed class SchemaEndpointsTests
     {
         var controller = CreateFormSchemasController();
 
-        var result = await controller.GetFormSchema("unknown-form");
+        var result = await controller.GetFormSchema(new FormSchemaRouteRequest { FormType = "unknown-form" });
 
         Assert.IsType<NotFoundResult>(result.Result);
     }
@@ -56,7 +56,7 @@ public sealed class SchemaEndpointsTests
     {
         var controller = CreateFormSchemasController();
 
-        var result = await controller.GetFormSchema("hvac");
+        var result = await controller.GetFormSchema(new FormSchemaRouteRequest { FormType = "hvac" });
 
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         var response = Assert.IsType<FormSchemaResponse>(ok.Value);
@@ -88,7 +88,7 @@ public sealed class SchemaEndpointsTests
                     ])
             ]);
 
-        var result = await controller.UpsertFormSchema("hvac", schema);
+        var result = await controller.UpsertFormSchema(new FormSchemaRouteRequest { FormType = "hvac" }, schema);
 
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         var response = Assert.IsType<FormSchemaResponse>(ok.Value);
@@ -107,7 +107,7 @@ public sealed class SchemaEndpointsTests
             FormName: "Custom",
             Sections: []);
 
-        var result = await controller.UpsertFormSchema("custom-form", schema);
+        var result = await controller.UpsertFormSchema(new FormSchemaRouteRequest { FormType = "custom-form" }, schema);
 
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         var response = Assert.IsType<FormSchemaResponse>(ok.Value);
@@ -119,7 +119,7 @@ public sealed class SchemaEndpointsTests
     {
         var controller = CreateTranslationsController();
 
-        var result = await controller.GetTranslations("es");
+        var result = await controller.GetTranslations(new TranslationLanguageRequest { Language = "es" });
 
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         var response = Assert.IsType<TranslationsResponse>(ok.Value);
@@ -133,7 +133,7 @@ public sealed class SchemaEndpointsTests
     {
         var controller = CreateTranslationsController();
 
-        var result = await controller.GetTranslations("fr");
+        var result = await controller.GetTranslations(new TranslationLanguageRequest { Language = "fr" });
 
         Assert.IsType<NotFoundResult>(result.Result);
     }
@@ -157,7 +157,7 @@ public sealed class SchemaEndpointsTests
             }
         };
 
-        var result = await controller.UpsertTranslations("en", payload);
+        var result = await controller.UpsertTranslations(new TranslationLanguageRequest { Language = "en" }, payload);
 
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         var response = Assert.IsType<TranslationsResponse>(ok.Value);
@@ -184,7 +184,7 @@ public sealed class SchemaEndpointsTests
             }
         };
 
-        var result = await controller.UpsertTranslations("fr", payload);
+        var result = await controller.UpsertTranslations(new TranslationLanguageRequest { Language = "fr" }, payload);
 
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         var response = Assert.IsType<TranslationsResponse>(ok.Value);

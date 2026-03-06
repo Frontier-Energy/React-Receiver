@@ -1,19 +1,21 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace React_Receiver.Models;
 
 public sealed record FormSchemaResponse(
-    string FormName,
-    FormSectionResponse[] Sections
+    [property: Required(AllowEmptyStrings = false)] string? FormName,
+    [property: Required] FormSectionResponse[]? Sections
 );
 
 public sealed record FormSectionResponse(
-    string Title,
-    FormFieldResponse[] Fields
+    [property: Required(AllowEmptyStrings = false)] string? Title,
+    [property: Required] FormFieldResponse[]? Fields
 );
 
 public sealed record FormFieldResponse(
-    string Id,
-    string Label,
-    string Type,
+    [property: Required(AllowEmptyStrings = false)] string? Id,
+    [property: Required(AllowEmptyStrings = false)] string? Label,
+    [property: Required(AllowEmptyStrings = false)] string? Type,
     bool Required,
     string? ExternalID = null,
     FormFieldOptionResponse[]? Options = null,
@@ -27,18 +29,18 @@ public sealed record FormFieldResponse(
 );
 
 public sealed record FormFieldOptionResponse(
-    string Label,
-    string Value
+    [property: Required(AllowEmptyStrings = false)] string? Label,
+    [property: Required(AllowEmptyStrings = false)] string? Value
 );
 
 public sealed record ValidationRuleResponse(
-    string Type,
+    [property: Required(AllowEmptyStrings = false)] string? Type,
     object? Value,
-    string Message
+    [property: Required(AllowEmptyStrings = false)] string? Message
 );
 
 public sealed record ConditionalVisibilityResponse(
-    string FieldId,
+    [property: Required(AllowEmptyStrings = false)] string? FieldId,
     object? Value,
     string? Operator = null
 );
