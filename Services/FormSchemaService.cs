@@ -1,9 +1,23 @@
 using Azure;
 using Azure.Data.Tables;
 using Azure.Storage.Blobs;
+using Microsoft.Extensions.Logging;
 using React_Receiver.Models;
 
 namespace React_Receiver.Services;
+
+public sealed class FormSchemaBlobContentException : InvalidOperationException
+{
+    public FormSchemaBlobContentException(string message)
+        : base(message)
+    {
+    }
+
+    public FormSchemaBlobContentException(string message, Exception innerException)
+        : base(message, innerException)
+    {
+    }
+}
 
 public interface IFormSchemaService
 {
@@ -28,17 +42,20 @@ public sealed class FormSchemaService : IFormSchemaService
     private readonly BlobServiceClient _blobServiceClient;
     private readonly TableStorageOptions _tableOptions;
     private readonly BlobStorageOptions _blobOptions;
+    private readonly ILogger<FormSchemaService> _logger;
     private readonly Dictionary<string, FormSchemaCatalogEntry> _formSchemaCatalog;
 
     public FormSchemaService(
         BlobServiceClient blobServiceClient,
         TableServiceClient tableServiceClient,
         IBootstrapDataProvider bootstrapDataProvider,
+        ILogger<FormSchemaService> logger,
         Microsoft.Extensions.Options.IOptions<BlobStorageOptions> blobOptions,
         Microsoft.Extensions.Options.IOptions<TableStorageOptions> tableOptions)
     {
         _blobServiceClient = blobServiceClient;
         _tableServiceClient = tableServiceClient;
+        _logger = logger;
         _blobOptions = blobOptions.Value;
         _tableOptions = tableOptions.Value;
         _formSchemaCatalog = bootstrapDataProvider
@@ -96,6 +113,7 @@ public sealed class FormSchemaService : IFormSchemaService
         }
         catch (RequestFailedException ex) when (ex.Status == 404)
         {
+            _logger.LogInformation("Form schema metadata was not found for form type '{FormType}'.", formType);
             return null;
         }
     }
@@ -167,14 +185,38 @@ public sealed class FormSchemaService : IFormSchemaService
         }
     }
 
-    private async Task<FormSchemaResponse> ReadSchemaAsync(
+    public async Task<FormSchemaResponse> ReadSchemaAsync(
         FormSchemaEntity entity,
         CancellationToken cancellationToken)
     {
         if (entity.HasSchemaBlob)
         {
-            EnsureBlobStorageConfigured();
-            return await DownloadSchemaAsync(entity.SchemaBlobName, cancellationToken);
+            if (!HasBlobStorageConfiguration())
+            {
+                if (entity.HasInlineSections)
+                {
+                    _logger.LogWarning(
+                        "Blob storage is not configured for schema '{FormType}'. Falling back to inline schema payload.",
+                        entity.RowKey);
+                    return entity.ToResponse();
+                }
+
+                throw new FormSchemaBlobContentException(
+                    $"Form schema '{entity.RowKey}' metadata exists, but blob storage is not configured.");
+            }
+
+            try
+            {
+                return await DownloadSchemaAsync(entity.SchemaBlobName, cancellationToken);
+            }
+            catch (FormSchemaBlobContentException ex) when (entity.HasInlineSections)
+            {
+                _logger.LogWarning(
+                    ex,
+                    "Blob-backed schema content could not be read for '{FormType}'. Falling back to inline schema payload.",
+                    entity.RowKey);
+                return entity.ToResponse();
+            }
         }
 
         if (entity.HasInlineSections)
@@ -182,7 +224,8 @@ public sealed class FormSchemaService : IFormSchemaService
             return entity.ToResponse();
         }
 
-        throw new InvalidOperationException($"Form schema '{entity.RowKey}' does not have a stored payload reference.");
+        throw new FormSchemaBlobContentException(
+            $"Form schema '{entity.RowKey}' metadata exists, but does not contain inline content or a blob reference.");
     }
 
     private async Task UpsertSchemaEntityAsync(
@@ -222,14 +265,27 @@ public sealed class FormSchemaService : IFormSchemaService
         var containerClient = _blobServiceClient.GetBlobContainerClient(_blobOptions.ContainerName);
         var blobClient = containerClient.GetBlobClient(blobName);
 
-        if (!await blobClient.ExistsAsync(cancellationToken))
+        try
         {
-            throw new InvalidOperationException($"Form schema blob '{blobName}' was not found.");
-        }
+            if (!await blobClient.ExistsAsync(cancellationToken))
+            {
+                throw new FormSchemaBlobContentException($"Form schema blob '{blobName}' was not found.");
+            }
 
-        var content = await blobClient.DownloadContentAsync(cancellationToken);
-        return content.Value.Content.ToObjectFromJson<FormSchemaResponse>()
-            ?? throw new InvalidOperationException($"Form schema blob '{blobName}' did not contain a valid payload.");
+            var content = await blobClient.DownloadContentAsync(cancellationToken);
+            return content.Value.Content.ToObjectFromJson<FormSchemaResponse>()
+                ?? throw new FormSchemaBlobContentException($"Form schema blob '{blobName}' did not contain a valid payload.");
+        }
+        catch (FormSchemaBlobContentException)
+        {
+            throw;
+        }
+        catch (RequestFailedException ex)
+        {
+            throw new FormSchemaBlobContentException(
+                $"Form schema blob '{blobName}' could not be read from blob storage.",
+                ex);
+        }
     }
 
     private bool HasBlobStorageConfiguration()

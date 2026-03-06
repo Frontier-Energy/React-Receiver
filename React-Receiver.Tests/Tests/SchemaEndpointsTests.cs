@@ -3,6 +3,7 @@ using Azure.Data.Tables;
 using Azure.Storage.Blobs;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using React_Receiver.Controllers;
 using React_Receiver.Handlers;
@@ -62,6 +63,25 @@ public sealed class SchemaEndpointsTests
         var response = Assert.IsType<FormSchemaResponse>(ok.Value);
         Assert.False(string.IsNullOrWhiteSpace(response.FormName));
         Assert.NotEmpty(response.Sections);
+    }
+
+    [Fact]
+    public async Task GetFormSchema_ReturnsInternalServerErrorWhenBlobContentIsMissing()
+    {
+        var controller = new FormSchemasController(
+            new ThrowingFormSchemaService(new FormSchemaBlobContentException("missing blob")),
+            NullLogger<FormSchemasController>.Instance)
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext()
+            }
+        };
+
+        var result = await controller.GetFormSchema(new FormSchemaRouteRequest { FormType = "hvac" });
+
+        var objectResult = Assert.IsType<ObjectResult>(result.Result);
+        Assert.Equal(StatusCodes.Status500InternalServerError, objectResult.StatusCode);
     }
 
     [Fact]
@@ -219,8 +239,10 @@ public sealed class SchemaEndpointsTests
                 new BlobServiceClient("UseDevelopmentStorage=true"),
                 new TableServiceClient("UseDevelopmentStorage=true"),
                 new FileBootstrapDataProvider(),
+                NullLogger<FormSchemaService>.Instance,
                 Options.Create(new BlobStorageOptions()),
-                Options.Create(tableOptions ?? new TableStorageOptions())))
+                Options.Create(tableOptions ?? new TableStorageOptions())),
+            NullLogger<FormSchemasController>.Instance)
         {
             ControllerContext = new ControllerContext
             {
@@ -280,6 +302,36 @@ public sealed class SchemaEndpointsTests
             CancellationToken cancellationToken)
         {
             return Task.FromResult(userId);
+        }
+    }
+
+    private sealed class ThrowingFormSchemaService : IFormSchemaService
+    {
+        private readonly Exception _exception;
+
+        public ThrowingFormSchemaService(Exception exception)
+        {
+            _exception = exception;
+        }
+
+        public Task<FormSchemaCatalogResponse> ListAsync(CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<FormSchemaResponse?> GetAsync(string formType, CancellationToken cancellationToken)
+        {
+            throw _exception;
+        }
+
+        public Task<FormSchemaResponse?> UpsertAsync(string formType, FormSchemaResponse request, CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task ImportSeedDataAsync(bool overwriteExisting, CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
         }
     }
 
