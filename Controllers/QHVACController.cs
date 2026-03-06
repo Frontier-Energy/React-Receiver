@@ -196,6 +196,62 @@ public sealed class QHVACController : ControllerBase
         return File(download.Value.Content, contentType, safeFileName);
     }
 
+    [HttpGet("me")]
+    public ActionResult<MeResponse> GetCurrentUser()
+    {
+        var response = new MeResponse(
+            UserId: "a1b2c3",
+            Roles: ["admin"],
+            Permissions: ["tenant.select", "customization.admin"]);
+
+        return Ok(response);
+    }
+
+    [HttpGet("form-schemas")]
+    public ActionResult<FormSchemaCatalogResponse> ListFormSchemas()
+    {
+        var items = FormSchemaCatalog
+            .Select(item => new FormSchemaCatalogItemResponse(
+                FormType: item.Key,
+                Version: item.Value.Version,
+                Etag: item.Value.Etag))
+            .ToArray();
+
+        return Ok(new FormSchemaCatalogResponse(Items: items));
+    }
+
+    [HttpGet("form-schemas/{formType}")]
+    public ActionResult<FormSchemaResponse> GetFormSchema([FromRoute] string formType)
+    {
+        if (string.IsNullOrWhiteSpace(formType))
+        {
+            return BadRequest("formType is required.");
+        }
+
+        if (!FormSchemaCatalog.TryGetValue(formType, out var schema))
+        {
+            return NotFound();
+        }
+
+        return Ok(schema.Schema);
+    }
+
+    [HttpGet("translations/{language}")]
+    public ActionResult<TranslationsResponse> GetTranslations([FromRoute] string language)
+    {
+        if (string.IsNullOrWhiteSpace(language))
+        {
+            return BadRequest("language is required.");
+        }
+
+        if (!Translations.TryGetValue(language, out var translations))
+        {
+            return NotFound();
+        }
+
+        return Ok(translations);
+    }
+
     [HttpGet("tenant-config")]
     public async Task<ActionResult<TenantBootstrapResponse>> GetTenantConfig()
     {
@@ -259,6 +315,123 @@ public sealed class QHVACController : ControllerBase
             return Array.Empty<InspectionFileReference>();
         }
     }
+
+    private sealed record FormSchemaCatalogEntry(
+        string Version,
+        string Etag,
+        FormSchemaResponse Schema
+    );
+
+    private static readonly Dictionary<string, FormSchemaCatalogEntry> FormSchemaCatalog =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["hvac"] = new FormSchemaCatalogEntry(
+                Version: "2026-03-05",
+                Etag: "\"hvac-v1\"",
+                Schema: new FormSchemaResponse(
+                    FormName: "HVAC Inspection",
+                    Sections:
+                    [
+                        new FormSectionResponse(
+                            Title: "Equipment Information",
+                            Fields:
+                            [
+                                new FormFieldResponse(
+                                    Id: "unitLocation",
+                                    Label: "Unit Location",
+                                    Type: "text",
+                                    Required: true,
+                                    ExternalID: "hvac.unitLocation",
+                                    Placeholder: "e.g., Attic, Basement, Roof",
+                                    ValidationRules:
+                                    [
+                                        new ValidationRuleResponse(
+                                            Type: "minLength",
+                                            Value: 3,
+                                            Message: "Unit location must be at least 3 characters")
+                                    ])
+                            ])
+                    ])),
+            ["electrical"] = new FormSchemaCatalogEntry(
+                Version: "2026-03-05",
+                Etag: "\"electrical-v1\"",
+                Schema: new FormSchemaResponse(
+                    FormName: "Electrical Inspection",
+                    Sections:
+                    [
+                        new FormSectionResponse(
+                            Title: "General",
+                            Fields:
+                            [
+                                new FormFieldResponse(
+                                    Id: "panelCondition",
+                                    Label: "Panel Condition",
+                                    Type: "select",
+                                    Required: true,
+                                    ExternalID: "electrical.panelCondition",
+                                    Options:
+                                    [
+                                        new FormFieldOptionResponse("Good", "good"),
+                                        new FormFieldOptionResponse("Needs Attention", "needs-attention")
+                                    ])
+                            ])
+                    ])),
+            ["electrical-sf"] = new FormSchemaCatalogEntry(
+                Version: "2026-03-05",
+                Etag: "\"electrical-sf-v1\"",
+                Schema: new FormSchemaResponse(
+                    FormName: "Electrical SF Inspection",
+                    Sections:
+                    [
+                        new FormSectionResponse(
+                            Title: "Service",
+                            Fields:
+                            [
+                                new FormFieldResponse(
+                                    Id: "serviceAmps",
+                                    Label: "Service Amperage",
+                                    Type: "number",
+                                    Required: true,
+                                    ExternalID: "electrical.serviceAmps")
+                            ])
+                    ])),
+            ["safety-checklist"] = new FormSchemaCatalogEntry(
+                Version: "2026-03-05",
+                Etag: "\"safety-checklist-v1\"",
+                Schema: new FormSchemaResponse(
+                    FormName: "Safety Checklist",
+                    Sections:
+                    [
+                        new FormSectionResponse(
+                            Title: "Site Safety",
+                            Fields:
+                            [
+                                new FormFieldResponse(
+                                    Id: "ppeVerified",
+                                    Label: "PPE Verified",
+                                    Type: "checkbox",
+                                    Required: true,
+                                    ExternalID: "safety.ppeVerified")
+                            ])
+                    ]))
+        };
+
+    private static readonly Dictionary<string, TranslationsResponse> Translations =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["en"] = new TranslationsResponse(
+                LanguageName: "English",
+                App: new TranslationAppResponse(
+                    Title: "Data Intake Tool",
+                    PoweredBy: "Powered By",
+                    Brand: "QControl")),
+            ["es"] = new TranslationsResponse(
+                LanguageName: "Espanol",
+                App: new TranslationAppResponse(
+                    Title: "Herramienta de Captura de Datos",
+                    PoweredBy: "Desarrollado por",
+                    Brand: "QControl"))
+        };
 
     private sealed class InspectionPayload
     {
