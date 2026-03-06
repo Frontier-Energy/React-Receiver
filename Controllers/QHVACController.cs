@@ -21,6 +21,7 @@ public sealed class QHVACController : ControllerBase
     private readonly ILoginRequestHandler _loginRequestHandler;
     private readonly IReceiveInspectionRequestParser _receiveInspectionRequestParser;
     private readonly IRegisterRequestHandler _registerRequestHandler;
+    private readonly ITenantConfigHandler _tenantConfigHandler;
     private readonly BlobServiceClient _blobServiceClient;
     private readonly TableServiceClient _tableServiceClient;
     private readonly BlobStorageOptions _blobOptions;
@@ -31,6 +32,7 @@ public sealed class QHVACController : ControllerBase
         ILoginRequestHandler loginRequestHandler,
         IReceiveInspectionRequestParser receiveInspectionRequestParser,
         IRegisterRequestHandler registerRequestHandler,
+        ITenantConfigHandler tenantConfigHandler,
         BlobServiceClient blobServiceClient,
         TableServiceClient tableServiceClient,
         IOptions<BlobStorageOptions> blobOptions,
@@ -40,6 +42,7 @@ public sealed class QHVACController : ControllerBase
         _loginRequestHandler = loginRequestHandler;
         _receiveInspectionRequestParser = receiveInspectionRequestParser;
         _registerRequestHandler = registerRequestHandler;
+        _tenantConfigHandler = tenantConfigHandler;
         _blobServiceClient = blobServiceClient;
         _tableServiceClient = tableServiceClient;
         _blobOptions = blobOptions.Value;
@@ -194,20 +197,17 @@ public sealed class QHVACController : ControllerBase
     }
 
     [HttpGet("tenant-config")]
-    public ActionResult<TenantBootstrapResponse> GetTenantConfig()
+    public async Task<ActionResult<TenantBootstrapResponse>> GetTenantConfig()
     {
-        return Ok(new TenantBootstrapResponse(
-            TenantId: "qhvac",
-            DisplayName: "QHVAC",
-            UiDefaults: new UiDefaults(
-                Theme: "harbor",
-                Font: "Tahoma, \"Trebuchet MS\", Arial, sans-serif",
-                Language: "en",
-                ShowLeftFlyout: true,
-                ShowRightFlyout: true,
-                ShowInspectionStatsButton: false),
-            EnabledForms: ["electrical", "electrical-sf", "hvac"],
-            LoginRequired: true));
+        var tenantConfig = await _tenantConfigHandler.GetTenantConfigAsync(HttpContext.RequestAborted);
+        return Ok(tenantConfig);
+    }
+
+    [HttpPost("tenant-config")]
+    public async Task<ActionResult<TenantBootstrapResponse>> UpsertTenantConfig([FromBody] TenantBootstrapResponse request)
+    {
+        var tenantConfig = await _tenantConfigHandler.UpsertTenantConfigAsync(request, HttpContext.RequestAborted);
+        return Ok(tenantConfig);
     }
 
     private static async Task<InspectionPayload?> LoadInspectionPayloadAsync(

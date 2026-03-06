@@ -32,6 +32,7 @@ builder.Services.AddSingleton<React_Receiver.Handlers.IInspectionRequestHandler,
 builder.Services.AddSingleton<React_Receiver.Handlers.ILoginRequestHandler, React_Receiver.Handlers.LoginRequestHandler>();
 builder.Services.AddSingleton<React_Receiver.Handlers.IReceiveInspectionRequestParser, React_Receiver.Handlers.ReceiveInspectionRequestParser>();
 builder.Services.AddSingleton<React_Receiver.Handlers.IRegisterRequestHandler, React_Receiver.Handlers.RegisterRequestHandler>();
+builder.Services.AddSingleton<React_Receiver.Handlers.ITenantConfigHandler, React_Receiver.Handlers.TenantConfigHandler>();
 
 var app = builder.Build();
 

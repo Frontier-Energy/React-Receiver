@@ -76,6 +76,7 @@ public sealed class ReceiveInspectionTests
             new FakeLoginRequestHandler(),
             new ReceiveInspectionRequestParser(),
             new FakeRegisterRequestHandler(),
+            new FakeTenantConfigHandler(),
             new BlobServiceClient("UseDevelopmentStorage=true"),
             new TableServiceClient("UseDevelopmentStorage=true"),
             Options.Create(new BlobStorageOptions()),
@@ -136,6 +137,32 @@ public sealed class ReceiveInspectionTests
             CancellationToken cancellationToken)
         {
             return Task.FromResult(userId);
+        }
+    }
+
+    private sealed class FakeTenantConfigHandler : ITenantConfigHandler
+    {
+        public Task<TenantBootstrapResponse> GetTenantConfigAsync(CancellationToken cancellationToken)
+        {
+            return Task.FromResult(new TenantBootstrapResponse(
+                TenantId: "qhvac",
+                DisplayName: "QHVAC",
+                UiDefaults: new UiDefaults(
+                    Theme: "harbor",
+                    Font: "Tahoma, \"Trebuchet MS\", Arial, sans-serif",
+                    Language: "en",
+                    ShowLeftFlyout: true,
+                    ShowRightFlyout: true,
+                    ShowInspectionStatsButton: false),
+                EnabledForms: ["electrical", "electrical-sf", "hvac"],
+                LoginRequired: true));
+        }
+
+        public Task<TenantBootstrapResponse> UpsertTenantConfigAsync(
+            TenantBootstrapResponse tenantConfig,
+            CancellationToken cancellationToken)
+        {
+            return Task.FromResult(tenantConfig);
         }
     }
 }

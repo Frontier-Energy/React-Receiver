@@ -15,11 +15,11 @@ namespace React_Receiver.Tests;
 public sealed class TenantConfigTests
 {
     [Fact]
-    public void GetTenantConfig_ReturnsExpectedPayload()
+    public async Task GetTenantConfig_ReturnsExpectedPayload()
     {
         var controller = CreateController();
 
-        var result = controller.GetTenantConfig();
+        var result = await controller.GetTenantConfig();
 
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         var response = Assert.IsType<TenantBootstrapResponse>(ok.Value);
@@ -42,6 +42,7 @@ public sealed class TenantConfigTests
             new FakeLoginRequestHandler(),
             new ReceiveInspectionRequestParser(),
             new FakeRegisterRequestHandler(),
+            new FakeTenantConfigHandler(),
             new BlobServiceClient("UseDevelopmentStorage=true"),
             new TableServiceClient("UseDevelopmentStorage=true"),
             Options.Create(new BlobStorageOptions()),
@@ -88,6 +89,32 @@ public sealed class TenantConfigTests
             CancellationToken cancellationToken)
         {
             return Task.FromResult(userId);
+        }
+    }
+
+    private sealed class FakeTenantConfigHandler : ITenantConfigHandler
+    {
+        public Task<TenantBootstrapResponse> GetTenantConfigAsync(CancellationToken cancellationToken)
+        {
+            return Task.FromResult(new TenantBootstrapResponse(
+                TenantId: "qhvac",
+                DisplayName: "QHVAC",
+                UiDefaults: new UiDefaults(
+                    Theme: "harbor",
+                    Font: "Tahoma, \"Trebuchet MS\", Arial, sans-serif",
+                    Language: "en",
+                    ShowLeftFlyout: true,
+                    ShowRightFlyout: true,
+                    ShowInspectionStatsButton: false),
+                EnabledForms: ["electrical", "electrical-sf", "hvac"],
+                LoginRequired: true));
+        }
+
+        public Task<TenantBootstrapResponse> UpsertTenantConfigAsync(
+            TenantBootstrapResponse tenantConfig,
+            CancellationToken cancellationToken)
+        {
+            return Task.FromResult(tenantConfig);
         }
     }
 }
