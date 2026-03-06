@@ -22,4 +22,10 @@
     <Compile Remove="React-Receiver.Tests\**\*.cs" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Update="SeedData\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
 </Project>

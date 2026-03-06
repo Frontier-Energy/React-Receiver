@@ -2,7 +2,6 @@ using Azure;
 using Azure.Data.Tables;
 using React_Receiver.Models;
 using React_Receiver.Services;
-using System.Collections.Concurrent;
 
 namespace React_Receiver.Handlers;
 
@@ -10,48 +9,36 @@ public interface ITenantConfigHandler
 {
     Task<TenantBootstrapResponse?> GetTenantConfigAsync(string? tenantId, CancellationToken cancellationToken);
     Task<TenantBootstrapResponse> UpsertTenantConfigAsync(TenantBootstrapResponse tenantConfig, CancellationToken cancellationToken);
+    Task ImportSeedDataAsync(bool overwriteExisting, CancellationToken cancellationToken);
 }
 
 public sealed class TenantConfigHandler : ITenantConfigHandler
 {
     private const string DefaultTenantId = "qhvac";
-    private static readonly ConcurrentDictionary<string, TenantBootstrapResponse> TenantConfigs =
-        new(
-            new Dictionary<string, TenantBootstrapResponse>(StringComparer.OrdinalIgnoreCase)
-            {
-                ["qhvac"] = BuildDefaultConfig(),
-                ["lire"] = new TenantBootstrapResponse(
-                    TenantId: "lire",
-                    DisplayName: "LIRE",
-                    UiDefaults: new UiDefaults(
-                        Theme: "mist",
-                        Font: "\"Source Sans Pro\", \"Helvetica Neue\", Arial, sans-serif",
-                        Language: "en",
-                        ShowLeftFlyout: false,
-                        ShowRightFlyout: true,
-                        ShowInspectionStatsButton: false),
-                    EnabledForms: Array.Empty<string>(),
-                    LoginRequired: false)
-            });
+
     private readonly TableServiceClient _tableServiceClient;
     private readonly TableStorageOptions _tableOptions;
+    private readonly Dictionary<string, TenantBootstrapResponse> _tenantConfigs;
 
     public TenantConfigHandler(
         TableServiceClient tableServiceClient,
+        IBootstrapDataProvider bootstrapDataProvider,
         Microsoft.Extensions.Options.IOptions<TableStorageOptions> tableOptions)
     {
         _tableServiceClient = tableServiceClient;
         _tableOptions = tableOptions.Value;
+        _tenantConfigs = bootstrapDataProvider
+            .GetTenantConfigs()
+            .ToDictionary(item => item.Payload.TenantId, item => item.Payload, StringComparer.OrdinalIgnoreCase);
     }
 
     public async Task<TenantBootstrapResponse?> GetTenantConfigAsync(string? tenantId, CancellationToken cancellationToken)
     {
         var normalizedTenantId = NormalizeTenantId(tenantId);
 
-        if (string.IsNullOrWhiteSpace(_tableOptions.ConnectionString) ||
-            string.IsNullOrWhiteSpace(_tableOptions.TenantConfigTableName))
+        if (!HasTableStorageConfiguration())
         {
-            return TenantConfigs.TryGetValue(normalizedTenantId, out var config) ? config : null;
+            return _tenantConfigs.TryGetValue(normalizedTenantId, out var config) ? config : null;
         }
 
         var tableClient = _tableServiceClient.GetTableClient(_tableOptions.TenantConfigTableName);
@@ -68,14 +55,7 @@ public sealed class TenantConfigHandler : ITenantConfigHandler
         }
         catch (RequestFailedException ex) when (ex.Status == 404)
         {
-            if (!TenantConfigs.TryGetValue(normalizedTenantId, out var defaultConfig))
-            {
-                return null;
-            }
-
-            var entity = TenantConfigEntity.FromResponse(defaultConfig);
-            await tableClient.UpsertEntityAsync(entity, TableUpdateMode.Replace, cancellationToken);
-            return defaultConfig;
+            return null;
         }
     }
 
@@ -85,10 +65,9 @@ public sealed class TenantConfigHandler : ITenantConfigHandler
     {
         var normalizedConfig = Normalize(tenantConfig);
 
-        if (string.IsNullOrWhiteSpace(_tableOptions.ConnectionString) ||
-            string.IsNullOrWhiteSpace(_tableOptions.TenantConfigTableName))
+        if (!HasTableStorageConfiguration())
         {
-            TenantConfigs[normalizedConfig.TenantId] = normalizedConfig;
+            _tenantConfigs[normalizedConfig.TenantId] = normalizedConfig;
             return normalizedConfig;
         }
 
@@ -102,6 +81,30 @@ public sealed class TenantConfigHandler : ITenantConfigHandler
         return normalizedConfig;
     }
 
+    public async Task ImportSeedDataAsync(bool overwriteExisting, CancellationToken cancellationToken)
+    {
+        if (!HasTableStorageConfiguration())
+        {
+            return;
+        }
+
+        var tableClient = _tableServiceClient.GetTableClient(_tableOptions.TenantConfigTableName);
+        await tableClient.CreateIfNotExistsAsync(cancellationToken: cancellationToken);
+
+        foreach (var tenantConfig in _tenantConfigs)
+        {
+            if (!overwriteExisting && await TenantConfigExistsAsync(tableClient, tenantConfig.Key, cancellationToken))
+            {
+                continue;
+            }
+
+            await tableClient.UpsertEntityAsync(
+                TenantConfigEntity.FromResponse(tenantConfig.Value),
+                TableUpdateMode.Replace,
+                cancellationToken);
+        }
+    }
+
     private static string NormalizeTenantId(string? tenantId)
     {
         return string.IsNullOrWhiteSpace(tenantId) ? DefaultTenantId : tenantId.Trim();
@@ -109,33 +112,36 @@ public sealed class TenantConfigHandler : ITenantConfigHandler
 
     private static TenantBootstrapResponse Normalize(TenantBootstrapResponse config)
     {
-        var fallback = BuildDefaultConfig();
-        var tenantId = string.IsNullOrWhiteSpace(config.TenantId) ? fallback.TenantId : config.TenantId;
-        var displayName = string.IsNullOrWhiteSpace(config.DisplayName) ? fallback.DisplayName : config.DisplayName;
-        var uiDefaults = config.UiDefaults ?? fallback.UiDefaults;
-        var enabledForms = config.EnabledForms ?? fallback.EnabledForms;
-
         return new TenantBootstrapResponse(
-            TenantId: tenantId,
-            DisplayName: displayName,
-            UiDefaults: uiDefaults,
-            EnabledForms: enabledForms,
-            LoginRequired: config.LoginRequired);
+            config.TenantId.Trim(),
+            config.DisplayName.Trim(),
+            config.UiDefaults,
+            config.EnabledForms,
+            config.LoginRequired);
     }
 
-    private static TenantBootstrapResponse BuildDefaultConfig()
+    private bool HasTableStorageConfiguration()
     {
-        return new TenantBootstrapResponse(
-            TenantId: DefaultTenantId,
-            DisplayName: "QHVAC",
-            UiDefaults: new UiDefaults(
-                Theme: "harbor",
-                Font: "Tahoma, \"Trebuchet MS\", Arial, sans-serif",
-                Language: "en",
-                ShowLeftFlyout: true,
-                ShowRightFlyout: true,
-                ShowInspectionStatsButton: false),
-            EnabledForms: ["electrical", "electrical-sf", "hvac"],
-            LoginRequired: true);
+        return !string.IsNullOrWhiteSpace(_tableOptions.ConnectionString) &&
+               !string.IsNullOrWhiteSpace(_tableOptions.TenantConfigTableName);
+    }
+
+    private static async Task<bool> TenantConfigExistsAsync(
+        TableClient tableClient,
+        string tenantId,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await tableClient.GetEntityAsync<TenantConfigEntity>(
+                TenantConfigEntity.PartitionKeyValue,
+                tenantId,
+                cancellationToken: cancellationToken);
+            return true;
+        }
+        catch (RequestFailedException ex) when (ex.Status == 404)
+        {
+            return false;
+        }
     }
 }

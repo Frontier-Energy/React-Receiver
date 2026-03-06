@@ -1,0 +1,168 @@
+{
+  "formSchemas": [
+    {
+      "formType": "hvac",
+      "version": "2026-03-05",
+      "etag": "\"hvac-v1\"",
+      "schema": {
+        "formName": "HVAC Inspection",
+        "sections": [
+          {
+            "title": "Equipment Information",
+            "fields": [
+              {
+                "id": "unitLocation",
+                "label": "Unit Location",
+                "type": "text",
+                "required": true,
+                "externalID": "hvac.unitLocation",
+                "placeholder": "e.g., Attic, Basement, Roof",
+                "validationRules": [
+                  {
+                    "type": "minLength",
+                    "value": 3,
+                    "message": "Unit location must be at least 3 characters"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "formType": "electrical",
+      "version": "2026-03-05",
+      "etag": "\"electrical-v1\"",
+      "schema": {
+        "formName": "Electrical Inspection",
+        "sections": [
+          {
+            "title": "General",
+            "fields": [
+              {
+                "id": "panelCondition",
+                "label": "Panel Condition",
+                "type": "select",
+                "required": true,
+                "externalID": "electrical.panelCondition",
+                "options": [
+                  {
+                    "label": "Good",
+                    "value": "good"
+                  },
+                  {
+                    "label": "Needs Attention",
+                    "value": "needs-attention"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "formType": "electrical-sf",
+      "version": "2026-03-05",
+      "etag": "\"electrical-sf-v1\"",
+      "schema": {
+        "formName": "Electrical SF Inspection",
+        "sections": [
+          {
+            "title": "Service",
+            "fields": [
+              {
+                "id": "serviceAmps",
+                "label": "Service Amperage",
+                "type": "number",
+                "required": true,
+                "externalID": "electrical.serviceAmps"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "formType": "safety-checklist",
+      "version": "2026-03-05",
+      "etag": "\"safety-checklist-v1\"",
+      "schema": {
+        "formName": "Safety Checklist",
+        "sections": [
+          {
+            "title": "Site Safety",
+            "fields": [
+              {
+                "id": "ppeVerified",
+                "label": "PPE Verified",
+                "type": "checkbox",
+                "required": true,
+                "externalID": "safety.ppeVerified"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "translations": [
+    {
+      "language": "en",
+      "payload": {
+        "languageName": "English",
+        "app": {
+          "title": "Data Intake Tool",
+          "poweredBy": "Powered By",
+          "brand": "QControl"
+        }
+      }
+    },
+    {
+      "language": "es",
+      "payload": {
+        "languageName": "Espanol",
+        "app": {
+          "title": "Herramienta de Captura de Datos",
+          "poweredBy": "Desarrollado por",
+          "brand": "QControl"
+        }
+      }
+    }
+  ],
+  "tenantConfigs": [
+    {
+      "tenantId": "qhvac",
+      "displayName": "QHVAC",
+      "uiDefaults": {
+        "theme": "harbor",
+        "font": "Tahoma, \"Trebuchet MS\", Arial, sans-serif",
+        "language": "en",
+        "showLeftFlyout": true,
+        "showRightFlyout": true,
+        "showInspectionStatsButton": false
+      },
+      "enabledForms": [
+        "electrical",
+        "electrical-sf",
+        "hvac"
+      ],
+      "loginRequired": true
+    },
+    {
+      "tenantId": "lire",
+      "displayName": "LIRE",
+      "uiDefaults": {
+        "theme": "mist",
+        "font": "\"Source Sans Pro\", \"Helvetica Neue\", Arial, sans-serif",
+        "language": "en",
+        "showLeftFlyout": false,
+        "showRightFlyout": true,
+        "showInspectionStatsButton": false
+      },
+      "enabledForms": [],
+      "loginRequired": false
+    }
+  ]
+}

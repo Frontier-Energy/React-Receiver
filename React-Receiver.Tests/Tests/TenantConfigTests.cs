@@ -82,5 +82,10 @@ public sealed class TenantConfigTests
         {
             return Task.FromResult(tenantConfig);
         }
+
+        public Task ImportSeedDataAsync(bool overwriteExisting, CancellationToken cancellationToken)
+        {
+            return Task.CompletedTask;
+        }
     }
 }

@@ -29,8 +29,8 @@ public sealed class TenantConfigHandlerTests
     {
         var handler = CreateHandler();
         var payload = new TenantBootstrapResponse(
-            TenantId: "",
-            DisplayName: "",
+            TenantId: " custom-tenant ",
+            DisplayName: " Custom Tenant ",
             UiDefaults: new UiDefaults(
                 Theme: "custom-theme",
                 Font: "Segoe UI",
@@ -43,8 +43,8 @@ public sealed class TenantConfigHandlerTests
 
         var result = await handler.UpsertTenantConfigAsync(payload, CancellationToken.None);
 
-        Assert.Equal("qhvac", result.TenantId);
-        Assert.Equal("QHVAC", result.DisplayName);
+        Assert.Equal("custom-tenant", result.TenantId);
+        Assert.Equal("Custom Tenant", result.DisplayName);
         Assert.Equal("custom-theme", result.UiDefaults.Theme);
         Assert.Equal(["hvac"], result.EnabledForms);
         Assert.False(result.LoginRequired);
@@ -64,6 +64,6 @@ public sealed class TenantConfigHandlerTests
     {
         var tableClient = new TableServiceClient("UseDevelopmentStorage=true");
         var options = Options.Create(new TableStorageOptions { ConnectionString = string.Empty });
-        return new TenantConfigHandler(tableClient, options);
+        return new TenantConfigHandler(tableClient, new FileBootstrapDataProvider(), options);
     }
 }

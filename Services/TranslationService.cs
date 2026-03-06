@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using Azure;
 using Azure.Data.Tables;
 using React_Receiver.Models;
@@ -9,58 +8,34 @@ public interface ITranslationService
 {
     Task<TranslationsResponse?> GetAsync(string language, CancellationToken cancellationToken);
     Task<TranslationsResponse?> UpsertAsync(string language, TranslationsResponse request, CancellationToken cancellationToken);
+    Task ImportSeedDataAsync(bool overwriteExisting, CancellationToken cancellationToken);
 }
 
 public sealed class TranslationService : ITranslationService
 {
-    private static readonly ConcurrentDictionary<string, TranslationsResponse> Translations =
-        new(
-            new Dictionary<string, TranslationsResponse>(StringComparer.OrdinalIgnoreCase)
-            {
-                ["en"] = new()
-                {
-                    LanguageName = "English",
-                    App = new AppTranslations
-                    {
-                        Title = "Data Intake Tool",
-                        PoweredBy = "Powered By",
-                        Brand = "QControl"
-                    }
-                },
-                ["es"] = new()
-                {
-                    LanguageName = "Espanol",
-                    App = new AppTranslations
-                    {
-                        Title = "Herramienta de Captura de Datos",
-                        PoweredBy = "Desarrollado por",
-                        Brand = "QControl"
-                    }
-                }
-            });
-
     private readonly TableServiceClient _tableServiceClient;
     private readonly TableStorageOptions _tableOptions;
+    private readonly Dictionary<string, TranslationsResponse> _translations;
 
     public TranslationService(
         TableServiceClient tableServiceClient,
+        IBootstrapDataProvider bootstrapDataProvider,
         Microsoft.Extensions.Options.IOptions<TableStorageOptions> tableOptions)
     {
         _tableServiceClient = tableServiceClient;
         _tableOptions = tableOptions.Value;
+        _translations = bootstrapDataProvider
+            .GetTranslations()
+            .ToDictionary(item => item.Language, item => item.Payload, StringComparer.OrdinalIgnoreCase);
     }
 
     public async Task<TranslationsResponse?> GetAsync(string language, CancellationToken cancellationToken)
     {
-        if (!Translations.TryGetValue(language, out var defaultTranslations))
+        if (!HasTableStorageConfiguration())
         {
-            return null;
-        }
-
-        if (string.IsNullOrWhiteSpace(_tableOptions.ConnectionString) ||
-            string.IsNullOrWhiteSpace(_tableOptions.TranslationsTableName))
-        {
-            return defaultTranslations;
+            return _translations.TryGetValue(language, out var defaultTranslations)
+                ? defaultTranslations
+                : null;
         }
 
         var tableClient = _tableServiceClient.GetTableClient(_tableOptions.TranslationsTableName);
@@ -76,11 +51,7 @@ public sealed class TranslationService : ITranslationService
         }
         catch (RequestFailedException ex) when (ex.Status == 404)
         {
-            await tableClient.UpsertEntityAsync(
-                TranslationEntity.FromResponse(language, defaultTranslations),
-                TableUpdateMode.Replace,
-                cancellationToken);
-            return defaultTranslations;
+            return null;
         }
     }
 
@@ -89,15 +60,9 @@ public sealed class TranslationService : ITranslationService
         TranslationsResponse request,
         CancellationToken cancellationToken)
     {
-        if (!Translations.ContainsKey(language))
+        if (!HasTableStorageConfiguration())
         {
-            return null;
-        }
-
-        if (string.IsNullOrWhiteSpace(_tableOptions.ConnectionString) ||
-            string.IsNullOrWhiteSpace(_tableOptions.TranslationsTableName))
-        {
-            Translations[language] = request;
+            _translations[language] = request;
             return request;
         }
 
@@ -108,7 +73,56 @@ public sealed class TranslationService : ITranslationService
             TableUpdateMode.Replace,
             cancellationToken);
 
-        Translations[language] = request;
+        _translations[language] = request;
         return request;
+    }
+
+    public async Task ImportSeedDataAsync(bool overwriteExisting, CancellationToken cancellationToken)
+    {
+        if (!HasTableStorageConfiguration())
+        {
+            return;
+        }
+
+        var tableClient = _tableServiceClient.GetTableClient(_tableOptions.TranslationsTableName);
+        await tableClient.CreateIfNotExistsAsync(cancellationToken: cancellationToken);
+
+        foreach (var translation in _translations)
+        {
+            if (!overwriteExisting && await TranslationExistsAsync(tableClient, translation.Key, cancellationToken))
+            {
+                continue;
+            }
+
+            await tableClient.UpsertEntityAsync(
+                TranslationEntity.FromResponse(translation.Key, translation.Value),
+                TableUpdateMode.Replace,
+                cancellationToken);
+        }
+    }
+
+    private bool HasTableStorageConfiguration()
+    {
+        return !string.IsNullOrWhiteSpace(_tableOptions.ConnectionString) &&
+               !string.IsNullOrWhiteSpace(_tableOptions.TranslationsTableName);
+    }
+
+    private static async Task<bool> TranslationExistsAsync(
+        TableClient tableClient,
+        string language,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await tableClient.GetEntityAsync<TranslationEntity>(
+                TranslationEntity.PartitionKeyValue,
+                language,
+                cancellationToken: cancellationToken);
+            return true;
+        }
+        catch (RequestFailedException ex) when (ex.Status == 404)
+        {
+            return false;
+        }
     }
 }

@@ -109,7 +109,9 @@ public sealed class SchemaEndpointsTests
 
         var result = await controller.UpsertFormSchema("custom-form", schema);
 
-        Assert.IsType<NotFoundResult>(result.Result);
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var response = Assert.IsType<FormSchemaResponse>(ok.Value);
+        Assert.Equal("Custom", response.FormName);
     }
 
     [Fact]
@@ -184,7 +186,9 @@ public sealed class SchemaEndpointsTests
 
         var result = await controller.UpsertTranslations("fr", payload);
 
-        Assert.IsType<NotFoundResult>(result.Result);
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var response = Assert.IsType<TranslationsResponse>(ok.Value);
+        Assert.Equal("French", response.LanguageName);
     }
 
     private static QHVACController CreateQhvacController(TableStorageOptions? tableOptions = null)
@@ -214,6 +218,7 @@ public sealed class SchemaEndpointsTests
             new FormSchemaService(
                 new BlobServiceClient("UseDevelopmentStorage=true"),
                 new TableServiceClient("UseDevelopmentStorage=true"),
+                new FileBootstrapDataProvider(),
                 Options.Create(new BlobStorageOptions()),
                 Options.Create(tableOptions ?? new TableStorageOptions())))
         {
@@ -231,6 +236,7 @@ public sealed class SchemaEndpointsTests
         var controller = new TranslationsController(
             new TranslationService(
                 new TableServiceClient("UseDevelopmentStorage=true"),
+                new FileBootstrapDataProvider(),
                 Options.Create(tableOptions ?? new TableStorageOptions())))
         {
             ControllerContext = new ControllerContext

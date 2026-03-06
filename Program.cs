@@ -13,6 +13,8 @@ builder.Services.Configure<React_Receiver.Services.QueueStorageOptions>(
     builder.Configuration.GetSection("QueueStorage"));
 builder.Services.Configure<React_Receiver.Services.TableStorageOptions>(
     builder.Configuration.GetSection("TableStorage"));
+builder.Services.Configure<React_Receiver.Services.BootstrapDataOptions>(
+    builder.Configuration.GetSection("BootstrapData"));
 builder.Services.AddSingleton(sp =>
 {
     var options = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<React_Receiver.Services.BlobStorageOptions>>().Value;
@@ -28,6 +30,7 @@ builder.Services.AddSingleton(sp =>
     var options = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<React_Receiver.Services.TableStorageOptions>>().Value;
     return new Azure.Data.Tables.TableServiceClient(options.ConnectionString);
 });
+builder.Services.AddSingleton<React_Receiver.Services.IBootstrapDataProvider, React_Receiver.Services.FileBootstrapDataProvider>();
 builder.Services.AddSingleton<React_Receiver.Handlers.IInspectionRequestHandler, React_Receiver.Handlers.InspectionRequestHandler>();
 builder.Services.AddSingleton<React_Receiver.Handlers.ILoginRequestHandler, React_Receiver.Handlers.LoginRequestHandler>();
 builder.Services.AddSingleton<React_Receiver.Handlers.IReceiveInspectionRequestParser, React_Receiver.Handlers.ReceiveInspectionRequestParser>();
@@ -37,6 +40,7 @@ builder.Services.AddSingleton<React_Receiver.Services.IInspectionQueryService, R
 builder.Services.AddSingleton<React_Receiver.Services.IUserQueryService, React_Receiver.Services.UserQueryService>();
 builder.Services.AddSingleton<React_Receiver.Services.IFormSchemaService, React_Receiver.Services.FormSchemaService>();
 builder.Services.AddSingleton<React_Receiver.Services.ITranslationService, React_Receiver.Services.TranslationService>();
+builder.Services.AddHostedService<React_Receiver.Services.BootstrapDataHostedService>();
 
 var app = builder.Build();
 
