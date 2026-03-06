@@ -15,11 +15,11 @@ namespace React_Receiver.Tests;
 public sealed class SchemaEndpointsTests
 {
     [Fact]
-    public void GetCurrentUser_ReturnsMePayload()
+    public async Task GetCurrentUser_ReturnsMePayload()
     {
         var controller = CreateController();
 
-        var result = controller.GetCurrentUser();
+        var result = await controller.GetCurrentUser();
 
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         var response = Assert.IsType<MeResponse>(ok.Value);
@@ -29,11 +29,11 @@ public sealed class SchemaEndpointsTests
     }
 
     [Fact]
-    public void ListFormSchemas_ReturnsCatalog()
+    public async Task ListFormSchemas_ReturnsCatalog()
     {
         var controller = CreateController();
 
-        var result = controller.ListFormSchemas();
+        var result = await controller.ListFormSchemas();
 
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         var response = Assert.IsType<FormSchemaCatalogResponse>(ok.Value);
@@ -42,21 +42,21 @@ public sealed class SchemaEndpointsTests
     }
 
     [Fact]
-    public void GetFormSchema_ReturnsNotFoundForUnknownFormType()
+    public async Task GetFormSchema_ReturnsNotFoundForUnknownFormType()
     {
         var controller = CreateController();
 
-        var result = controller.GetFormSchema("unknown-form");
+        var result = await controller.GetFormSchema("unknown-form");
 
         Assert.IsType<NotFoundResult>(result.Result);
     }
 
     [Fact]
-    public void GetFormSchema_ReturnsSchemaForKnownFormType()
+    public async Task GetFormSchema_ReturnsSchemaForKnownFormType()
     {
         var controller = CreateController();
 
-        var result = controller.GetFormSchema("hvac");
+        var result = await controller.GetFormSchema("hvac");
 
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         var response = Assert.IsType<FormSchemaResponse>(ok.Value);
@@ -65,11 +65,11 @@ public sealed class SchemaEndpointsTests
     }
 
     [Fact]
-    public void GetTranslations_ReturnsTranslationForLanguage()
+    public async Task GetTranslations_ReturnsTranslationForLanguage()
     {
         var controller = CreateController();
 
-        var result = controller.GetTranslations("es");
+        var result = await controller.GetTranslations("es");
 
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         var response = Assert.IsType<TranslationsResponse>(ok.Value);
@@ -78,11 +78,11 @@ public sealed class SchemaEndpointsTests
     }
 
     [Fact]
-    public void GetTranslations_ReturnsNotFoundForUnknownLanguage()
+    public async Task GetTranslations_ReturnsNotFoundForUnknownLanguage()
     {
         var controller = CreateController();
 
-        var result = controller.GetTranslations("fr");
+        var result = await controller.GetTranslations("fr");
 
         Assert.IsType<NotFoundResult>(result.Result);
     }

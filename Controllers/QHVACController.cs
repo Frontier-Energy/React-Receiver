@@ -197,59 +197,158 @@ public sealed class QHVACController : ControllerBase
     }
 
     [HttpGet("me")]
-    public ActionResult<MeResponse> GetCurrentUser()
+    public async Task<ActionResult<MeResponse>> GetCurrentUser()
     {
-        var response = new MeResponse(
+        var defaultResponse = new MeResponse(
             UserId: "a1b2c3",
             Roles: ["admin"],
             Permissions: ["tenant.select", "customization.admin"]);
 
-        return Ok(response);
+        if (string.IsNullOrWhiteSpace(_tableOptions.ConnectionString) ||
+            string.IsNullOrWhiteSpace(_tableOptions.MeTableName))
+        {
+            return Ok(defaultResponse);
+        }
+
+        var tableClient = _tableServiceClient.GetTableClient(_tableOptions.MeTableName);
+        await tableClient.CreateIfNotExistsAsync(cancellationToken: HttpContext.RequestAborted);
+
+        try
+        {
+            var response = await tableClient.GetEntityAsync<MeEntity>(
+                MeEntity.PartitionKeyValue,
+                MeEntity.CurrentUserRowKey,
+                cancellationToken: HttpContext.RequestAborted);
+            return Ok(response.Value.ToResponse());
+        }
+        catch (RequestFailedException ex) when (ex.Status == 404)
+        {
+            await tableClient.UpsertEntityAsync(
+                MeEntity.FromResponse(defaultResponse),
+                TableUpdateMode.Replace,
+                HttpContext.RequestAborted);
+            return Ok(defaultResponse);
+        }
     }
 
     [HttpGet("form-schemas")]
-    public ActionResult<FormSchemaCatalogResponse> ListFormSchemas()
+    public async Task<ActionResult<FormSchemaCatalogResponse>> ListFormSchemas()
     {
-        var items = FormSchemaCatalog
-            .Select(item => new FormSchemaCatalogItemResponse(
-                FormType: item.Key,
-                Version: item.Value.Version,
-                Etag: item.Value.Etag))
+        var defaultItems = FormSchemaCatalog
+            .Select(item => item.Value.ToCatalogItem(item.Key))
             .ToArray();
 
-        return Ok(new FormSchemaCatalogResponse(Items: items));
+        if (string.IsNullOrWhiteSpace(_tableOptions.ConnectionString) ||
+            string.IsNullOrWhiteSpace(_tableOptions.FormSchemaCatalogTableName))
+        {
+            return Ok(new FormSchemaCatalogResponse(Items: defaultItems));
+        }
+
+        var tableClient = _tableServiceClient.GetTableClient(_tableOptions.FormSchemaCatalogTableName);
+        await tableClient.CreateIfNotExistsAsync(cancellationToken: HttpContext.RequestAborted);
+
+        var items = new List<FormSchemaCatalogItemResponse>();
+        await foreach (var entity in tableClient.QueryAsync<FormSchemaCatalogItemEntity>(
+                           e => e.PartitionKey == FormSchemaCatalogItemEntity.PartitionKeyValue,
+                           cancellationToken: HttpContext.RequestAborted))
+        {
+            items.Add(entity.ToResponse());
+        }
+
+        if (items.Count == 0)
+        {
+            foreach (var defaultItem in defaultItems)
+            {
+                await tableClient.UpsertEntityAsync(
+                    FormSchemaCatalogItemEntity.FromResponse(defaultItem),
+                    TableUpdateMode.Replace,
+                    HttpContext.RequestAborted);
+            }
+
+            items.AddRange(defaultItems);
+        }
+
+        return Ok(new FormSchemaCatalogResponse(Items: items.ToArray()));
     }
 
     [HttpGet("form-schemas/{formType}")]
-    public ActionResult<FormSchemaResponse> GetFormSchema([FromRoute] string formType)
+    public async Task<ActionResult<FormSchemaResponse>> GetFormSchema([FromRoute] string formType)
     {
         if (string.IsNullOrWhiteSpace(formType))
         {
             return BadRequest("formType is required.");
         }
 
-        if (!FormSchemaCatalog.TryGetValue(formType, out var schema))
+        if (!FormSchemaCatalog.TryGetValue(formType, out var defaultSchema))
         {
             return NotFound();
         }
 
-        return Ok(schema.Schema);
+        if (string.IsNullOrWhiteSpace(_tableOptions.ConnectionString) ||
+            string.IsNullOrWhiteSpace(_tableOptions.FormSchemasTableName))
+        {
+            return Ok(defaultSchema.Schema);
+        }
+
+        var tableClient = _tableServiceClient.GetTableClient(_tableOptions.FormSchemasTableName);
+        await tableClient.CreateIfNotExistsAsync(cancellationToken: HttpContext.RequestAborted);
+
+        try
+        {
+            var response = await tableClient.GetEntityAsync<FormSchemaEntity>(
+                FormSchemaEntity.PartitionKeyValue,
+                formType,
+                cancellationToken: HttpContext.RequestAborted);
+            return Ok(response.Value.ToResponse());
+        }
+        catch (RequestFailedException ex) when (ex.Status == 404)
+        {
+            await tableClient.UpsertEntityAsync(
+                FormSchemaEntity.FromResponse(formType, defaultSchema.Schema),
+                TableUpdateMode.Replace,
+                HttpContext.RequestAborted);
+            return Ok(defaultSchema.Schema);
+        }
     }
 
     [HttpGet("translations/{language}")]
-    public ActionResult<TranslationsResponse> GetTranslations([FromRoute] string language)
+    public async Task<ActionResult<TranslationsResponse>> GetTranslations([FromRoute] string language)
     {
         if (string.IsNullOrWhiteSpace(language))
         {
             return BadRequest("language is required.");
         }
 
-        if (!Translations.TryGetValue(language, out var translations))
+        if (!Translations.TryGetValue(language, out var defaultTranslations))
         {
             return NotFound();
         }
 
-        return Ok(translations);
+        if (string.IsNullOrWhiteSpace(_tableOptions.ConnectionString) ||
+            string.IsNullOrWhiteSpace(_tableOptions.TranslationsTableName))
+        {
+            return Ok(defaultTranslations);
+        }
+
+        var tableClient = _tableServiceClient.GetTableClient(_tableOptions.TranslationsTableName);
+        await tableClient.CreateIfNotExistsAsync(cancellationToken: HttpContext.RequestAborted);
+
+        try
+        {
+            var response = await tableClient.GetEntityAsync<TranslationEntity>(
+                TranslationEntity.PartitionKeyValue,
+                language,
+                cancellationToken: HttpContext.RequestAborted);
+            return Ok(response.Value.ToResponse());
+        }
+        catch (RequestFailedException ex) when (ex.Status == 404)
+        {
+            await tableClient.UpsertEntityAsync(
+                TranslationEntity.FromResponse(language, defaultTranslations),
+                TableUpdateMode.Replace,
+                HttpContext.RequestAborted);
+            return Ok(defaultTranslations);
+        }
     }
 
     [HttpGet("tenant-config")]
@@ -320,7 +419,14 @@ public sealed class QHVACController : ControllerBase
         string Version,
         string Etag,
         FormSchemaResponse Schema
-    );
+    )
+    {
+        public FormSchemaCatalogItemResponse ToCatalogItem(string formType) =>
+            new(
+                FormType: formType,
+                Version: Version,
+                Etag: Etag);
+    }
 
     private static readonly Dictionary<string, FormSchemaCatalogEntry> FormSchemaCatalog =
         new(StringComparer.OrdinalIgnoreCase)
