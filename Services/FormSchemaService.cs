@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using Azure;
 using Azure.Data.Tables;
+using Azure.Storage.Blobs;
 using React_Receiver.Models;
 
 namespace React_Receiver.Services;
@@ -123,13 +124,19 @@ public sealed class FormSchemaService : IFormSchemaService
             });
 
     private readonly TableServiceClient _tableServiceClient;
+    private readonly BlobServiceClient _blobServiceClient;
     private readonly TableStorageOptions _tableOptions;
+    private readonly BlobStorageOptions _blobOptions;
 
     public FormSchemaService(
+        BlobServiceClient blobServiceClient,
         TableServiceClient tableServiceClient,
+        Microsoft.Extensions.Options.IOptions<BlobStorageOptions> blobOptions,
         Microsoft.Extensions.Options.IOptions<TableStorageOptions> tableOptions)
     {
+        _blobServiceClient = blobServiceClient;
         _tableServiceClient = tableServiceClient;
+        _blobOptions = blobOptions.Value;
         _tableOptions = tableOptions.Value;
     }
 
@@ -194,14 +201,11 @@ public sealed class FormSchemaService : IFormSchemaService
                 FormSchemaEntity.PartitionKeyValue,
                 formType,
                 cancellationToken: cancellationToken);
-            return response.Value.ToResponse();
+            return await ReadSchemaAsync(response.Value, defaultSchema.Schema, cancellationToken);
         }
         catch (RequestFailedException ex) when (ex.Status == 404)
         {
-            await tableClient.UpsertEntityAsync(
-                FormSchemaEntity.FromResponse(formType, defaultSchema.Schema),
-                TableUpdateMode.Replace,
-                cancellationToken);
+            await UpsertSchemaEntityAsync(tableClient, formType, defaultSchema.Schema, cancellationToken);
             return defaultSchema.Schema;
         }
     }
@@ -235,10 +239,7 @@ public sealed class FormSchemaService : IFormSchemaService
 
         var schemasTableClient = _tableServiceClient.GetTableClient(_tableOptions.FormSchemasTableName);
         await schemasTableClient.CreateIfNotExistsAsync(cancellationToken: cancellationToken);
-        await schemasTableClient.UpsertEntityAsync(
-            FormSchemaEntity.FromResponse(formType, request),
-            TableUpdateMode.Replace,
-            cancellationToken);
+        await UpsertSchemaEntityAsync(schemasTableClient, formType, request, cancellationToken);
 
         var catalogTableClient = _tableServiceClient.GetTableClient(_tableOptions.FormSchemaCatalogTableName);
         await catalogTableClient.CreateIfNotExistsAsync(cancellationToken: cancellationToken);
@@ -253,5 +254,77 @@ public sealed class FormSchemaService : IFormSchemaService
             Schema: request);
 
         return request;
+    }
+
+    private async Task<FormSchemaResponse> ReadSchemaAsync(
+        FormSchemaEntity entity,
+        FormSchemaResponse fallbackSchema,
+        CancellationToken cancellationToken)
+    {
+        if (entity.HasSchemaBlob)
+        {
+            return await DownloadSchemaAsync(entity.SchemaBlobName, fallbackSchema, cancellationToken);
+        }
+
+        return entity.ToResponse();
+    }
+
+    private async Task UpsertSchemaEntityAsync(
+        TableClient tableClient,
+        string formType,
+        FormSchemaResponse schema,
+        CancellationToken cancellationToken)
+    {
+        var schemaBlobName = HasBlobStorageConfiguration()
+            ? await UploadSchemaAsync(formType, schema, cancellationToken)
+            : null;
+
+        await tableClient.UpsertEntityAsync(
+            FormSchemaEntity.FromResponse(formType, schema, schemaBlobName),
+            TableUpdateMode.Replace,
+            cancellationToken);
+    }
+
+    private async Task<string> UploadSchemaAsync(
+        string formType,
+        FormSchemaResponse schema,
+        CancellationToken cancellationToken)
+    {
+        var containerClient = _blobServiceClient.GetBlobContainerClient(_blobOptions.ContainerName);
+        await containerClient.CreateIfNotExistsAsync(cancellationToken: cancellationToken);
+
+        var blobName = GetSchemaBlobName(formType);
+        var blobClient = containerClient.GetBlobClient(blobName);
+        await blobClient.UploadAsync(BinaryData.FromObjectAsJson(schema), overwrite: true, cancellationToken);
+
+        return blobName;
+    }
+
+    private async Task<FormSchemaResponse> DownloadSchemaAsync(
+        string blobName,
+        FormSchemaResponse fallbackSchema,
+        CancellationToken cancellationToken)
+    {
+        var containerClient = _blobServiceClient.GetBlobContainerClient(_blobOptions.ContainerName);
+        var blobClient = containerClient.GetBlobClient(blobName);
+
+        if (!await blobClient.ExistsAsync(cancellationToken))
+        {
+            throw new InvalidOperationException($"Form schema blob '{blobName}' was not found.");
+        }
+
+        var content = await blobClient.DownloadContentAsync(cancellationToken);
+        return content.Value.Content.ToObjectFromJson<FormSchemaResponse>() ?? fallbackSchema;
+    }
+
+    private bool HasBlobStorageConfiguration()
+    {
+        return !string.IsNullOrWhiteSpace(_blobOptions.ConnectionString) &&
+               !string.IsNullOrWhiteSpace(_blobOptions.ContainerName);
+    }
+
+    private static string GetSchemaBlobName(string formType)
+    {
+        return $"form-schemas/{formType}.json";
     }
 }

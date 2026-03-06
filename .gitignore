@@ -7,3 +7,5 @@
 /artifacts
 /React-Receiver.Tests/artifacts
 /.dotnet-home
+/.artifacts
+/React-Receiver.Tests/.artifacts

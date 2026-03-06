@@ -37,7 +37,7 @@ public sealed class QHVACController : ControllerBase
             tenantConfigHandler,
             new InspectionQueryService(blobServiceClient, tableServiceClient, blobOptions, tableOptions),
             new UserQueryService(tableServiceClient, tableOptions),
-            new FormSchemaService(tableServiceClient, tableOptions),
+            new FormSchemaService(blobServiceClient, tableServiceClient, blobOptions, tableOptions),
             new TranslationService(tableServiceClient, tableOptions))
     {
     }
