@@ -30,17 +30,15 @@ public sealed class FormSchemaEntity : ITableEntity
 
     public bool HasSchemaBlob => !string.IsNullOrWhiteSpace(SchemaBlobName);
 
-    public static FormSchemaEntity FromResponse(string formType, FormSchemaResponse response, string? schemaBlobName = null)
+    public static FormSchemaEntity FromResponse(string formType, string schemaBlobName)
     {
         return new FormSchemaEntity
         {
             PartitionKey = PartitionKeyValue,
             RowKey = formType,
-            FormName = response.FormName,
-            SectionsJson = string.IsNullOrWhiteSpace(schemaBlobName)
-                ? JsonSerializer.Serialize(response.Sections)
-                : EmptySectionsJson,
-            SchemaBlobName = schemaBlobName ?? string.Empty
+            FormName = string.Empty,
+            SectionsJson = EmptySectionsJson,
+            SchemaBlobName = schemaBlobName
         };
     }
 }

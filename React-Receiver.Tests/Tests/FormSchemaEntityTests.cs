@@ -8,26 +8,11 @@ public sealed class FormSchemaEntityTests
     [Fact]
     public void FromResponse_StoresBlobReference_WhenBlobNameProvided()
     {
-        var schema = new FormSchemaResponse(
-            FormName: "Safety Checklist",
-            Sections:
-            [
-                new FormSectionResponse(
-                    Title: "Section",
-                    Fields:
-                    [
-                        new FormFieldResponse(
-                            Id: "field-1",
-                            Label: "Field 1",
-                            Type: "text",
-                            Required: true)
-                    ])
-            ]);
-
-        var entity = FormSchemaEntity.FromResponse("safety-checklist", schema, "form-schemas/safety-checklist.json");
+        var entity = FormSchemaEntity.FromResponse("safety-checklist", "form-schemas/safety-checklist.json");
 
         Assert.Equal("form-schemas/safety-checklist.json", entity.SchemaBlobName);
         Assert.Equal(FormSchemaEntity.EmptySectionsJson, entity.SectionsJson);
+        Assert.Equal(string.Empty, entity.FormName);
         Assert.True(entity.HasSchemaBlob);
         Assert.False(entity.HasInlineSections);
     }

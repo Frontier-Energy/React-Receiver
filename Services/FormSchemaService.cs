@@ -173,10 +173,16 @@ public sealed class FormSchemaService : IFormSchemaService
     {
         if (entity.HasSchemaBlob)
         {
+            EnsureBlobStorageConfigured();
             return await DownloadSchemaAsync(entity.SchemaBlobName, cancellationToken);
         }
 
-        return entity.ToResponse();
+        if (entity.HasInlineSections)
+        {
+            return entity.ToResponse();
+        }
+
+        throw new InvalidOperationException($"Form schema '{entity.RowKey}' does not have a stored payload reference.");
     }
 
     private async Task UpsertSchemaEntityAsync(
@@ -185,12 +191,11 @@ public sealed class FormSchemaService : IFormSchemaService
         FormSchemaResponse schema,
         CancellationToken cancellationToken)
     {
-        var schemaBlobName = HasBlobStorageConfiguration()
-            ? await UploadSchemaAsync(formType, schema, cancellationToken)
-            : null;
+        EnsureBlobStorageConfigured();
+        var schemaBlobName = await UploadSchemaAsync(formType, schema, cancellationToken);
 
         await tableClient.UpsertEntityAsync(
-            FormSchemaEntity.FromResponse(formType, schema, schemaBlobName),
+            FormSchemaEntity.FromResponse(formType, schemaBlobName),
             TableUpdateMode.Replace,
             cancellationToken);
     }
@@ -231,6 +236,15 @@ public sealed class FormSchemaService : IFormSchemaService
     {
         return !string.IsNullOrWhiteSpace(_blobOptions.ConnectionString) &&
                !string.IsNullOrWhiteSpace(_blobOptions.ContainerName);
+    }
+
+    private void EnsureBlobStorageConfigured()
+    {
+        if (!HasBlobStorageConfiguration())
+        {
+            throw new InvalidOperationException(
+                "Blob storage configuration is required for persisted form schema payloads.");
+        }
     }
 
     private bool HasTableStorageConfiguration()
