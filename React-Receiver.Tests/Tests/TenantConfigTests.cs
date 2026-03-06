@@ -19,7 +19,7 @@ public sealed class TenantConfigTests
     {
         var controller = CreateController();
 
-        var result = await controller.GetTenantConfig();
+        var result = await controller.GetTenantConfig(null);
 
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         var response = Assert.IsType<TenantBootstrapResponse>(ok.Value);
@@ -33,6 +33,16 @@ public sealed class TenantConfigTests
         Assert.False(response.UiDefaults.ShowInspectionStatsButton);
         Assert.Equal(["electrical", "electrical-sf", "hvac"], response.EnabledForms);
         Assert.True(response.LoginRequired);
+    }
+
+    [Fact]
+    public async Task GetTenantConfig_ReturnsNotFoundForUnknownTenant()
+    {
+        var controller = CreateController();
+
+        var result = await controller.GetTenantConfig("unknown");
+
+        Assert.IsType<NotFoundResult>(result.Result);
     }
 
     private static QHVACController CreateController()
@@ -94,9 +104,14 @@ public sealed class TenantConfigTests
 
     private sealed class FakeTenantConfigHandler : ITenantConfigHandler
     {
-        public Task<TenantBootstrapResponse> GetTenantConfigAsync(CancellationToken cancellationToken)
+        public Task<TenantBootstrapResponse?> GetTenantConfigAsync(string? tenantId, CancellationToken cancellationToken)
         {
-            return Task.FromResult(new TenantBootstrapResponse(
+            if (!string.IsNullOrWhiteSpace(tenantId) && !string.Equals(tenantId, "qhvac", StringComparison.OrdinalIgnoreCase))
+            {
+                return Task.FromResult<TenantBootstrapResponse?>(null);
+            }
+
+            return Task.FromResult<TenantBootstrapResponse?>(new TenantBootstrapResponse(
                 TenantId: "qhvac",
                 DisplayName: "QHVAC",
                 UiDefaults: new UiDefaults(

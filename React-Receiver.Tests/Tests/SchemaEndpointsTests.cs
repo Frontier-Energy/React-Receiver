@@ -122,7 +122,8 @@ public sealed class SchemaEndpointsTests
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         var response = Assert.IsType<TranslationsResponse>(ok.Value);
         Assert.Equal("Espanol", response.LanguageName);
-        Assert.Equal("QControl", response.App.Brand);
+        var app = Assert.IsType<AppTranslations>(response.App);
+        Assert.Equal("QControl", app.Brand);
     }
 
     [Fact]
@@ -143,18 +144,23 @@ public sealed class SchemaEndpointsTests
             ConnectionString = string.Empty
         });
 
-        var payload = new TranslationsResponse(
-            LanguageName: "English",
-            App: new TranslationAppResponse(
-                Title: "Updated Title",
-                PoweredBy: "Powered By",
-                Brand: "QControl"));
+        var payload = new TranslationsResponse
+        {
+            LanguageName = "English",
+            App = new AppTranslations
+            {
+                Title = "Updated Title",
+                PoweredBy = "Powered By",
+                Brand = "QControl"
+            }
+        };
 
         var result = await controller.UpsertTranslations("en", payload);
 
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         var response = Assert.IsType<TranslationsResponse>(ok.Value);
-        Assert.Equal("Updated Title", response.App.Title);
+        var app = Assert.IsType<AppTranslations>(response.App);
+        Assert.Equal("Updated Title", app.Title);
     }
 
     [Fact]
@@ -165,12 +171,16 @@ public sealed class SchemaEndpointsTests
             ConnectionString = string.Empty
         });
 
-        var payload = new TranslationsResponse(
-            LanguageName: "French",
-            App: new TranslationAppResponse(
-                Title: "Titre",
-                PoweredBy: "Propulse par",
-                Brand: "QControl"));
+        var payload = new TranslationsResponse
+        {
+            LanguageName = "French",
+            App = new AppTranslations
+            {
+                Title = "Titre",
+                PoweredBy = "Propulse par",
+                Brand = "QControl"
+            }
+        };
 
         var result = await controller.UpsertTranslations("fr", payload);
 
@@ -236,9 +246,9 @@ public sealed class SchemaEndpointsTests
 
     private sealed class FakeTenantConfigHandler : ITenantConfigHandler
     {
-        public Task<TenantBootstrapResponse> GetTenantConfigAsync(CancellationToken cancellationToken)
+        public Task<TenantBootstrapResponse?> GetTenantConfigAsync(string? tenantId, CancellationToken cancellationToken)
         {
-            return Task.FromResult(new TenantBootstrapResponse(
+            return Task.FromResult<TenantBootstrapResponse?>(new TenantBootstrapResponse(
                 TenantId: "qhvac",
                 DisplayName: "QHVAC",
                 UiDefaults: new UiDefaults(

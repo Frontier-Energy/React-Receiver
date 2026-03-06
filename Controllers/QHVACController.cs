@@ -213,15 +213,26 @@ public sealed class QHVACController : ControllerBase
     }
 
     [HttpGet("tenant-config")]
-    public async Task<ActionResult<TenantBootstrapResponse>> GetTenantConfig()
+    public async Task<ActionResult<TenantBootstrapResponse>> GetTenantConfig([FromQuery] string? tenantId)
     {
-        var tenantConfig = await _tenantConfigHandler.GetTenantConfigAsync(HttpContext.RequestAborted);
-        return Ok(tenantConfig);
+        var tenantConfig = await _tenantConfigHandler.GetTenantConfigAsync(tenantId, HttpContext.RequestAborted);
+        return tenantConfig is null ? NotFound() : Ok(tenantConfig);
     }
 
     [HttpPost("tenant-config")]
     public async Task<ActionResult<TenantBootstrapResponse>> UpsertTenantConfig([FromBody] TenantBootstrapResponse request)
     {
+        if (string.IsNullOrWhiteSpace(request.TenantId) ||
+            string.IsNullOrWhiteSpace(request.DisplayName) ||
+            request.UiDefaults is null ||
+            string.IsNullOrWhiteSpace(request.UiDefaults.Theme) ||
+            string.IsNullOrWhiteSpace(request.UiDefaults.Font) ||
+            string.IsNullOrWhiteSpace(request.UiDefaults.Language) ||
+            request.EnabledForms is null)
+        {
+            return BadRequest("A valid tenant bootstrap payload is required.");
+        }
+
         var tenantConfig = await _tenantConfigHandler.UpsertTenantConfigAsync(request, HttpContext.RequestAborted);
         return Ok(tenantConfig);
     }

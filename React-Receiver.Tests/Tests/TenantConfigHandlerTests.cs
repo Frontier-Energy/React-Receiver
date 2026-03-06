@@ -14,8 +14,9 @@ public sealed class TenantConfigHandlerTests
     {
         var handler = CreateHandler();
 
-        var result = await handler.GetTenantConfigAsync(CancellationToken.None);
+        var result = await handler.GetTenantConfigAsync(null, CancellationToken.None);
 
+        Assert.NotNull(result);
         Assert.Equal("qhvac", result.TenantId);
         Assert.Equal("QHVAC", result.DisplayName);
         Assert.Equal("harbor", result.UiDefaults.Theme);
@@ -47,6 +48,16 @@ public sealed class TenantConfigHandlerTests
         Assert.Equal("custom-theme", result.UiDefaults.Theme);
         Assert.Equal(["hvac"], result.EnabledForms);
         Assert.False(result.LoginRequired);
+    }
+
+    [Fact]
+    public async Task GetTenantConfigAsync_ReturnsNull_ForUnknownTenant_WhenConnectionStringEmpty()
+    {
+        var handler = CreateHandler();
+
+        var result = await handler.GetTenantConfigAsync("unknown", CancellationToken.None);
+
+        Assert.Null(result);
     }
 
     private static TenantConfigHandler CreateHandler()

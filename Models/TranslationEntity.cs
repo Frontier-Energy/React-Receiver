@@ -14,13 +14,27 @@ public sealed class TranslationEntity : ITableEntity
     public ETag ETag { get; set; }
 
     public string LanguageName { get; set; } = string.Empty;
+    public string PayloadJson { get; set; } = "{}";
     public string AppJson { get; set; } = "{}";
 
     public TranslationsResponse ToResponse()
     {
-        var app = JsonSerializer.Deserialize<TranslationAppResponse>(AppJson) ??
-                  new TranslationAppResponse(string.Empty, string.Empty, string.Empty);
-        return new TranslationsResponse(LanguageName: LanguageName, App: app);
+        if (!string.IsNullOrWhiteSpace(PayloadJson) && PayloadJson != "{}")
+        {
+            var response = JsonSerializer.Deserialize<TranslationsResponse>(PayloadJson);
+            if (response is not null)
+            {
+                response.LanguageName ??= LanguageName;
+                return response;
+            }
+        }
+
+        var app = JsonSerializer.Deserialize<AppTranslations>(AppJson) ?? new AppTranslations();
+        return new TranslationsResponse
+        {
+            LanguageName = LanguageName,
+            App = app
+        };
     }
 
     public static TranslationEntity FromResponse(string language, TranslationsResponse response)
@@ -29,7 +43,8 @@ public sealed class TranslationEntity : ITableEntity
         {
             PartitionKey = PartitionKeyValue,
             RowKey = language,
-            LanguageName = response.LanguageName,
+            LanguageName = response.LanguageName ?? string.Empty,
+            PayloadJson = JsonSerializer.Serialize(response),
             AppJson = JsonSerializer.Serialize(response.App)
         };
     }

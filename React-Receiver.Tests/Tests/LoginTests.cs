@@ -85,9 +85,9 @@ public sealed class LoginTests
 
     private sealed class FakeTenantConfigHandler : ITenantConfigHandler
     {
-        public Task<TenantBootstrapResponse> GetTenantConfigAsync(CancellationToken cancellationToken)
+        public Task<TenantBootstrapResponse?> GetTenantConfigAsync(string? tenantId, CancellationToken cancellationToken)
         {
-            return Task.FromResult(new TenantBootstrapResponse(
+            return Task.FromResult<TenantBootstrapResponse?>(new TenantBootstrapResponse(
                 TenantId: "qhvac",
                 DisplayName: "QHVAC",
                 UiDefaults: new UiDefaults(

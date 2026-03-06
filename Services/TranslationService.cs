@@ -17,18 +17,26 @@ public sealed class TranslationService : ITranslationService
         new(
             new Dictionary<string, TranslationsResponse>(StringComparer.OrdinalIgnoreCase)
             {
-                ["en"] = new(
-                    LanguageName: "English",
-                    App: new TranslationAppResponse(
-                        Title: "Data Intake Tool",
-                        PoweredBy: "Powered By",
-                        Brand: "QControl")),
-                ["es"] = new(
-                    LanguageName: "Espanol",
-                    App: new TranslationAppResponse(
-                        Title: "Herramienta de Captura de Datos",
-                        PoweredBy: "Desarrollado por",
-                        Brand: "QControl"))
+                ["en"] = new()
+                {
+                    LanguageName = "English",
+                    App = new AppTranslations
+                    {
+                        Title = "Data Intake Tool",
+                        PoweredBy = "Powered By",
+                        Brand = "QControl"
+                    }
+                },
+                ["es"] = new()
+                {
+                    LanguageName = "Espanol",
+                    App = new AppTranslations
+                    {
+                        Title = "Herramienta de Captura de Datos",
+                        PoweredBy = "Desarrollado por",
+                        Brand = "QControl"
+                    }
+                }
             });
 
     private readonly TableServiceClient _tableServiceClient;
