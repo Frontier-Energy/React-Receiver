@@ -60,8 +60,56 @@ public sealed class SchemaEndpointsTests
 
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         var response = Assert.IsType<FormSchemaResponse>(ok.Value);
-        Assert.Equal("HVAC Inspection", response.FormName);
+        Assert.False(string.IsNullOrWhiteSpace(response.FormName));
         Assert.NotEmpty(response.Sections);
+    }
+
+    [Fact]
+    public async Task UpsertFormSchema_ReturnsOkForKnownFormType()
+    {
+        var controller = CreateController(new TableStorageOptions
+        {
+            ConnectionString = string.Empty
+        });
+
+        var schema = new FormSchemaResponse(
+            FormName: "HVAC Inspection Updated",
+            Sections:
+            [
+                new FormSectionResponse(
+                    Title: "Equipment",
+                    Fields:
+                    [
+                        new FormFieldResponse(
+                            Id: "unitLocation",
+                            Label: "Unit Location",
+                            Type: "text",
+                            Required: true)
+                    ])
+            ]);
+
+        var result = await controller.UpsertFormSchema("hvac", schema);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var response = Assert.IsType<FormSchemaResponse>(ok.Value);
+        Assert.Equal("HVAC Inspection Updated", response.FormName);
+    }
+
+    [Fact]
+    public async Task UpsertFormSchema_ReturnsNotFoundForUnknownFormType()
+    {
+        var controller = CreateController(new TableStorageOptions
+        {
+            ConnectionString = string.Empty
+        });
+
+        var schema = new FormSchemaResponse(
+            FormName: "Custom",
+            Sections: []);
+
+        var result = await controller.UpsertFormSchema("custom-form", schema);
+
+        Assert.IsType<NotFoundResult>(result.Result);
     }
 
     [Fact]
@@ -87,7 +135,7 @@ public sealed class SchemaEndpointsTests
         Assert.IsType<NotFoundResult>(result.Result);
     }
 
-    private static QHVACController CreateController()
+    private static QHVACController CreateController(TableStorageOptions? tableOptions = null)
     {
         var controller = new QHVACController(
             new FakeInspectionRequestHandler(),
@@ -98,7 +146,7 @@ public sealed class SchemaEndpointsTests
             new BlobServiceClient("UseDevelopmentStorage=true"),
             new TableServiceClient("UseDevelopmentStorage=true"),
             Options.Create(new BlobStorageOptions()),
-            Options.Create(new TableStorageOptions()))
+            Options.Create(tableOptions ?? new TableStorageOptions()))
         {
             ControllerContext = new ControllerContext
             {

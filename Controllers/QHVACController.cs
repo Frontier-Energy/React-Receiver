@@ -311,6 +311,65 @@ public sealed class QHVACController : ControllerBase
         }
     }
 
+    [HttpPut("form-schemas/{formType}")]
+    public async Task<ActionResult<FormSchemaResponse>> UpsertFormSchema(
+        [FromRoute] string formType,
+        [FromBody] FormSchemaResponse request)
+    {
+        if (string.IsNullOrWhiteSpace(formType))
+        {
+            return BadRequest("formType is required.");
+        }
+
+        if (request is null || string.IsNullOrWhiteSpace(request.FormName) || request.Sections is null)
+        {
+            return BadRequest("A valid form schema payload is required.");
+        }
+
+        if (!FormSchemaCatalog.ContainsKey(formType))
+        {
+            return NotFound();
+        }
+
+        var now = DateTime.UtcNow;
+        var catalogItem = new FormSchemaCatalogItemResponse(
+            FormType: formType,
+            Version: now.ToString("yyyy-MM-dd"),
+            Etag: $"\"{formType}-{now:yyyyMMddHHmmssfff}\"");
+
+        if (string.IsNullOrWhiteSpace(_tableOptions.ConnectionString) ||
+            string.IsNullOrWhiteSpace(_tableOptions.FormSchemasTableName) ||
+            string.IsNullOrWhiteSpace(_tableOptions.FormSchemaCatalogTableName))
+        {
+            FormSchemaCatalog[formType] = new FormSchemaCatalogEntry(
+                Version: catalogItem.Version,
+                Etag: catalogItem.Etag,
+                Schema: request);
+            return Ok(request);
+        }
+
+        var schemasTableClient = _tableServiceClient.GetTableClient(_tableOptions.FormSchemasTableName);
+        await schemasTableClient.CreateIfNotExistsAsync(cancellationToken: HttpContext.RequestAborted);
+        await schemasTableClient.UpsertEntityAsync(
+            FormSchemaEntity.FromResponse(formType, request),
+            TableUpdateMode.Replace,
+            HttpContext.RequestAborted);
+
+        var catalogTableClient = _tableServiceClient.GetTableClient(_tableOptions.FormSchemaCatalogTableName);
+        await catalogTableClient.CreateIfNotExistsAsync(cancellationToken: HttpContext.RequestAborted);
+        await catalogTableClient.UpsertEntityAsync(
+            FormSchemaCatalogItemEntity.FromResponse(catalogItem),
+            TableUpdateMode.Replace,
+            HttpContext.RequestAborted);
+
+        FormSchemaCatalog[formType] = new FormSchemaCatalogEntry(
+            Version: catalogItem.Version,
+            Etag: catalogItem.Etag,
+            Schema: request);
+
+        return Ok(request);
+    }
+
     [HttpGet("translations/{language}")]
     public async Task<ActionResult<TranslationsResponse>> GetTranslations([FromRoute] string language)
     {

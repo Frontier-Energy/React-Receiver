@@ -5,6 +5,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>React_Receiver</RootNamespace>
+    <DefaultItemExcludes>$(DefaultItemExcludes);React-Receiver.Tests\**</DefaultItemExcludes>
   </PropertyGroup>
 
   <ItemGroup>
