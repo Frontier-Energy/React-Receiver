@@ -2,11 +2,8 @@ using System.IO;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using Azure.Data.Tables;
-using Azure.Storage.Blobs;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Options;
 using React_Receiver.Controllers;
 using React_Receiver.Handlers;
 using React_Receiver.Models;
@@ -69,17 +66,12 @@ public sealed class ReceiveInspectionTests
         Assert.Equal("session-1", handler.LastRequest?.SessionId);
     }
 
-    private static QHVACController CreateController(FakeInspectionRequestHandler handler)
+    private static InspectionsController CreateController(FakeInspectionRequestHandler handler)
     {
-        var controller = new QHVACController(
+        var controller = new InspectionsController(
             handler,
-            new FakeLoginRequestHandler(),
             new ReceiveInspectionRequestParser(),
-            new FakeRegisterRequestHandler(),
-            new BlobServiceClient("UseDevelopmentStorage=true"),
-            new TableServiceClient("UseDevelopmentStorage=true"),
-            Options.Create(new BlobStorageOptions()),
-            Options.Create(new TableStorageOptions()))
+            new FakeInspectionQueryService())
         {
             ControllerContext = new ControllerContext
             {
@@ -120,22 +112,19 @@ public sealed class ReceiveInspectionTests
         }
     }
 
-    private sealed class FakeLoginRequestHandler : ILoginRequestHandler
+    private sealed class FakeInspectionQueryService : IInspectionQueryService
     {
-        public LoginRequestResponse HandleLogin(LoginRequestCommand request)
+        public Task<GetInspectionResponse?> GetInspectionAsync(string sessionId, CancellationToken cancellationToken)
         {
-            return new LoginRequestResponse(UserId: Guid.NewGuid().ToString("N"));
+            throw new NotSupportedException();
         }
-    }
 
-    private sealed class FakeRegisterRequestHandler : IRegisterRequestHandler
-    {
-        public Task<string> HandleRegisterAsync(
-            RegisterRequestModel request,
-            string userId,
+        public Task<InspectionFileStreamResult?> GetFileAsync(
+            string sessionId,
+            string fileName,
             CancellationToken cancellationToken)
         {
-            return Task.FromResult(userId);
+            throw new NotSupportedException();
         }
     }
 }

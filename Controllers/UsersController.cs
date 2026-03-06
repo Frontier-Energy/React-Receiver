@@ -16,6 +16,7 @@ public sealed class UsersController : ControllerBase
     }
 
     [HttpPost("lookup")]
+    [HttpPost("/QHVAC/GetUser")]
     public async Task<ActionResult<GetUserResponse>> GetUser([FromBody] GetUserRequest request)
     {
         var response = await _userQueryService.GetUserAsync(request.UserId!, HttpContext.RequestAborted);
@@ -23,6 +24,7 @@ public sealed class UsersController : ControllerBase
     }
 
     [HttpGet("me")]
+    [HttpGet("/QHVAC/me")]
     public async Task<ActionResult<MeResponse>> GetCurrentUser()
     {
         var response = await _userQueryService.GetCurrentUserAsync(HttpContext.RequestAborted);

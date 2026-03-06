@@ -6,7 +6,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using React_Receiver.Controllers;
-using React_Receiver.Handlers;
 using React_Receiver.Models;
 using React_Receiver.Services;
 using Xunit;
@@ -18,7 +17,7 @@ public sealed class SchemaEndpointsTests
     [Fact]
     public async Task GetCurrentUser_ReturnsMePayload()
     {
-        var controller = CreateQhvacController();
+        var controller = CreateUsersController();
 
         var result = await controller.GetCurrentUser();
 
@@ -211,17 +210,9 @@ public sealed class SchemaEndpointsTests
         Assert.Equal("French", response.LanguageName);
     }
 
-    private static QHVACController CreateQhvacController(TableStorageOptions? tableOptions = null)
+    private static UsersController CreateUsersController()
     {
-        var controller = new QHVACController(
-            new FakeInspectionRequestHandler(),
-            new FakeLoginRequestHandler(),
-            new ReceiveInspectionRequestParser(),
-            new FakeRegisterRequestHandler(),
-            new BlobServiceClient("UseDevelopmentStorage=true"),
-            new TableServiceClient("UseDevelopmentStorage=true"),
-            Options.Create(new BlobStorageOptions()),
-            Options.Create(tableOptions ?? new TableStorageOptions()))
+        var controller = new UsersController(new FakeUserQueryService())
         {
             ControllerContext = new ControllerContext
             {
@@ -270,38 +261,21 @@ public sealed class SchemaEndpointsTests
         return controller;
     }
 
-    private sealed class FakeInspectionRequestHandler : IInspectionRequestHandler
+    private sealed class FakeUserQueryService : IUserQueryService
     {
-        public Task<ReceiveInspectionResponse> SaveRequestAsync(
-            ReceiveInspectionRequest request,
-            CancellationToken cancellationToken)
-        {
-            var response = new ReceiveInspectionResponse(
-                Status: "Received",
-                SessionId: request.SessionId ?? string.Empty,
-                Name: request.Name ?? string.Empty,
-                QueryParams: request.QueryParams ?? new Dictionary<string, string>(),
-                Message: "OK");
-            return Task.FromResult(response);
-        }
-    }
-
-    private sealed class FakeLoginRequestHandler : ILoginRequestHandler
-    {
-        public LoginRequestResponse HandleLogin(LoginRequestCommand request)
-        {
-            return new LoginRequestResponse(UserId: Guid.NewGuid().ToString("N"));
-        }
-    }
-
-    private sealed class FakeRegisterRequestHandler : IRegisterRequestHandler
-    {
-        public Task<string> HandleRegisterAsync(
-            RegisterRequestModel request,
+        public Task<GetUserResponse?> GetUserAsync(
             string userId,
             CancellationToken cancellationToken)
         {
-            return Task.FromResult(userId);
+            throw new NotSupportedException();
+        }
+
+        public Task<MeResponse> GetCurrentUserAsync(CancellationToken cancellationToken)
+        {
+            return Task.FromResult(new MeResponse(
+                UserId: "a1b2c3",
+                Roles: ["admin"],
+                Permissions: ["tenant.select", "customization.admin"]));
         }
     }
 

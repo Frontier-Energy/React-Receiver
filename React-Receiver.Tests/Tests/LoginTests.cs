@@ -1,13 +1,9 @@
 using System;
-using Azure.Data.Tables;
-using Azure.Storage.Blobs;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Options;
 using React_Receiver.Controllers;
 using React_Receiver.Handlers;
 using React_Receiver.Models;
-using React_Receiver.Services;
 using Xunit;
 
 namespace React_Receiver.Tests;
@@ -26,17 +22,11 @@ public sealed class LoginTests
         Assert.True(Guid.TryParseExact(response.UserId, "N", out _));
     }
 
-    private static QHVACController CreateController()
+    private static AuthController CreateController()
     {
-        var controller = new QHVACController(
-            new FakeInspectionRequestHandler(),
+        var controller = new AuthController(
             new FakeLoginRequestHandler(),
-            new ReceiveInspectionRequestParser(),
-            new FakeRegisterRequestHandler(),
-            new BlobServiceClient("UseDevelopmentStorage=true"),
-            new TableServiceClient("UseDevelopmentStorage=true"),
-            Options.Create(new BlobStorageOptions()),
-            Options.Create(new TableStorageOptions()))
+            new FakeRegisterRequestHandler())
         {
             ControllerContext = new ControllerContext
             {
@@ -46,23 +36,6 @@ public sealed class LoginTests
 
         return controller;
     }
-
-    private sealed class FakeInspectionRequestHandler : IInspectionRequestHandler
-    {
-        public Task<ReceiveInspectionResponse> SaveRequestAsync(
-            ReceiveInspectionRequest request,
-            CancellationToken cancellationToken)
-        {
-            var response = new ReceiveInspectionResponse(
-                Status: "Received",
-                SessionId: request.SessionId ?? string.Empty,
-                Name: request.Name ?? string.Empty,
-                QueryParams: request.QueryParams ?? new Dictionary<string, string>(),
-                Message: "OK");
-            return Task.FromResult(response);
-        }
-    }
-
     private sealed class FakeLoginRequestHandler : ILoginRequestHandler
     {
         public LoginRequestResponse HandleLogin(LoginRequestCommand request)

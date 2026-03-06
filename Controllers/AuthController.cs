@@ -20,6 +20,7 @@ public sealed class AuthController : ControllerBase
     }
 
     [HttpPost("login")]
+    [HttpPost("/QHVAC/Login")]
     public ActionResult<LoginRequestResponse> Login([FromBody] LoginRequestCommand request)
     {
         var response = _loginRequestHandler.HandleLogin(request);
@@ -27,6 +28,7 @@ public sealed class AuthController : ControllerBase
     }
 
     [HttpPost("register")]
+    [HttpPost("/QHVAC/Register")]
     public async Task<ActionResult<RegisterResponseModel>> Register([FromBody] RegisterRequestModel request)
     {
         var userId = Guid.NewGuid().ToString("N");

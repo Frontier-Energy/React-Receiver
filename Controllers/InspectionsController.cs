@@ -24,6 +24,7 @@ public sealed class InspectionsController : ControllerBase
     }
 
     [HttpPost]
+    [HttpPost("/QHVAC/ReceiveInspection")]
     [Consumes("multipart/form-data")]
     public async Task<ActionResult<ReceiveInspectionResponse>> ReceiveInspection(
         [FromForm] ReceiveInspectionFormRequest request)
@@ -38,14 +39,16 @@ public sealed class InspectionsController : ControllerBase
     }
 
     [HttpGet("{sessionId}")]
-    public async Task<ActionResult<GetInspectionResponse>> GetInspection([FromRoute] GetInspectionRequest request)
+    [HttpGet("/QHVAC/GetInspection")]
+    public async Task<ActionResult<GetInspectionResponse>> GetInspection(GetInspectionRequest request)
     {
         var response = await _inspectionQueryService.GetInspectionAsync(request.SessionId!, HttpContext.RequestAborted);
         return response is null ? NotFound() : Ok(response);
     }
 
     [HttpGet("{sessionId}/files/{fileName}")]
-    public async Task<IActionResult> GetFile([FromRoute] GetInspectionFileRequest request)
+    [HttpGet("/QHVAC/GetFile")]
+    public async Task<IActionResult> GetFile(GetInspectionFileRequest request)
     {
         var response = await _inspectionQueryService.GetFileAsync(
             request.SessionId!,
