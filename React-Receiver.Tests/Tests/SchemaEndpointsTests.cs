@@ -17,7 +17,7 @@ public sealed class SchemaEndpointsTests
     [Fact]
     public async Task GetCurrentUser_ReturnsMePayload()
     {
-        var controller = CreateController();
+        var controller = CreateQhvacController();
 
         var result = await controller.GetCurrentUser();
 
@@ -31,7 +31,7 @@ public sealed class SchemaEndpointsTests
     [Fact]
     public async Task ListFormSchemas_ReturnsCatalog()
     {
-        var controller = CreateController();
+        var controller = CreateFormSchemasController();
 
         var result = await controller.ListFormSchemas();
 
@@ -44,7 +44,7 @@ public sealed class SchemaEndpointsTests
     [Fact]
     public async Task GetFormSchema_ReturnsNotFoundForUnknownFormType()
     {
-        var controller = CreateController();
+        var controller = CreateFormSchemasController();
 
         var result = await controller.GetFormSchema("unknown-form");
 
@@ -54,7 +54,7 @@ public sealed class SchemaEndpointsTests
     [Fact]
     public async Task GetFormSchema_ReturnsSchemaForKnownFormType()
     {
-        var controller = CreateController();
+        var controller = CreateFormSchemasController();
 
         var result = await controller.GetFormSchema("hvac");
 
@@ -67,7 +67,7 @@ public sealed class SchemaEndpointsTests
     [Fact]
     public async Task UpsertFormSchema_ReturnsOkForKnownFormType()
     {
-        var controller = CreateController(new TableStorageOptions
+        var controller = CreateFormSchemasController(new TableStorageOptions
         {
             ConnectionString = string.Empty
         });
@@ -98,7 +98,7 @@ public sealed class SchemaEndpointsTests
     [Fact]
     public async Task UpsertFormSchema_ReturnsNotFoundForUnknownFormType()
     {
-        var controller = CreateController(new TableStorageOptions
+        var controller = CreateFormSchemasController(new TableStorageOptions
         {
             ConnectionString = string.Empty
         });
@@ -115,7 +115,7 @@ public sealed class SchemaEndpointsTests
     [Fact]
     public async Task GetTranslations_ReturnsTranslationForLanguage()
     {
-        var controller = CreateController();
+        var controller = CreateTranslationsController();
 
         var result = await controller.GetTranslations("es");
 
@@ -129,7 +129,7 @@ public sealed class SchemaEndpointsTests
     [Fact]
     public async Task GetTranslations_ReturnsNotFoundForUnknownLanguage()
     {
-        var controller = CreateController();
+        var controller = CreateTranslationsController();
 
         var result = await controller.GetTranslations("fr");
 
@@ -139,7 +139,7 @@ public sealed class SchemaEndpointsTests
     [Fact]
     public async Task UpsertTranslations_ReturnsOkForKnownLanguage()
     {
-        var controller = CreateController(new TableStorageOptions
+        var controller = CreateTranslationsController(new TableStorageOptions
         {
             ConnectionString = string.Empty
         });
@@ -166,7 +166,7 @@ public sealed class SchemaEndpointsTests
     [Fact]
     public async Task UpsertTranslations_ReturnsNotFoundForUnknownLanguage()
     {
-        var controller = CreateController(new TableStorageOptions
+        var controller = CreateTranslationsController(new TableStorageOptions
         {
             ConnectionString = string.Empty
         });
@@ -187,18 +187,51 @@ public sealed class SchemaEndpointsTests
         Assert.IsType<NotFoundResult>(result.Result);
     }
 
-    private static QHVACController CreateController(TableStorageOptions? tableOptions = null)
+    private static QHVACController CreateQhvacController(TableStorageOptions? tableOptions = null)
     {
         var controller = new QHVACController(
             new FakeInspectionRequestHandler(),
             new FakeLoginRequestHandler(),
             new ReceiveInspectionRequestParser(),
             new FakeRegisterRequestHandler(),
-            new FakeTenantConfigHandler(),
             new BlobServiceClient("UseDevelopmentStorage=true"),
             new TableServiceClient("UseDevelopmentStorage=true"),
             Options.Create(new BlobStorageOptions()),
             Options.Create(tableOptions ?? new TableStorageOptions()))
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext()
+            }
+        };
+
+        return controller;
+    }
+
+    private static FormSchemasController CreateFormSchemasController(TableStorageOptions? tableOptions = null)
+    {
+        var controller = new FormSchemasController(
+            new FormSchemaService(
+                new BlobServiceClient("UseDevelopmentStorage=true"),
+                new TableServiceClient("UseDevelopmentStorage=true"),
+                Options.Create(new BlobStorageOptions()),
+                Options.Create(tableOptions ?? new TableStorageOptions())))
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext()
+            }
+        };
+
+        return controller;
+    }
+
+    private static TranslationsController CreateTranslationsController(TableStorageOptions? tableOptions = null)
+    {
+        var controller = new TranslationsController(
+            new TranslationService(
+                new TableServiceClient("UseDevelopmentStorage=true"),
+                Options.Create(tableOptions ?? new TableStorageOptions())))
         {
             ControllerContext = new ControllerContext
             {
@@ -244,29 +277,4 @@ public sealed class SchemaEndpointsTests
         }
     }
 
-    private sealed class FakeTenantConfigHandler : ITenantConfigHandler
-    {
-        public Task<TenantBootstrapResponse?> GetTenantConfigAsync(string? tenantId, CancellationToken cancellationToken)
-        {
-            return Task.FromResult<TenantBootstrapResponse?>(new TenantBootstrapResponse(
-                TenantId: "qhvac",
-                DisplayName: "QHVAC",
-                UiDefaults: new UiDefaults(
-                    Theme: "harbor",
-                    Font: "Tahoma, \"Trebuchet MS\", Arial, sans-serif",
-                    Language: "en",
-                    ShowLeftFlyout: true,
-                    ShowRightFlyout: true,
-                    ShowInspectionStatsButton: false),
-                EnabledForms: ["electrical", "electrical-sf", "hvac"],
-                LoginRequired: true));
-        }
-
-        public Task<TenantBootstrapResponse> UpsertTenantConfigAsync(
-            TenantBootstrapResponse tenantConfig,
-            CancellationToken cancellationToken)
-        {
-            return Task.FromResult(tenantConfig);
-        }
-    }
 }

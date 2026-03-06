@@ -13,18 +13,14 @@ public sealed class QHVACController : ControllerBase
     private readonly ILoginRequestHandler _loginRequestHandler;
     private readonly IReceiveInspectionRequestParser _receiveInspectionRequestParser;
     private readonly IRegisterRequestHandler _registerRequestHandler;
-    private readonly ITenantConfigHandler _tenantConfigHandler;
     private readonly IInspectionQueryService _inspectionQueryService;
     private readonly IUserQueryService _userQueryService;
-    private readonly IFormSchemaService _formSchemaService;
-    private readonly ITranslationService _translationService;
 
     public QHVACController(
         IInspectionRequestHandler inspectionRequestHandler,
         ILoginRequestHandler loginRequestHandler,
         IReceiveInspectionRequestParser receiveInspectionRequestParser,
         IRegisterRequestHandler registerRequestHandler,
-        ITenantConfigHandler tenantConfigHandler,
         Azure.Storage.Blobs.BlobServiceClient blobServiceClient,
         Azure.Data.Tables.TableServiceClient tableServiceClient,
         Microsoft.Extensions.Options.IOptions<BlobStorageOptions> blobOptions,
@@ -34,11 +30,8 @@ public sealed class QHVACController : ControllerBase
             loginRequestHandler,
             receiveInspectionRequestParser,
             registerRequestHandler,
-            tenantConfigHandler,
             new InspectionQueryService(blobServiceClient, tableServiceClient, blobOptions, tableOptions),
-            new UserQueryService(tableServiceClient, tableOptions),
-            new FormSchemaService(blobServiceClient, tableServiceClient, blobOptions, tableOptions),
-            new TranslationService(tableServiceClient, tableOptions))
+            new UserQueryService(tableServiceClient, tableOptions))
     {
     }
 
@@ -47,21 +40,15 @@ public sealed class QHVACController : ControllerBase
         ILoginRequestHandler loginRequestHandler,
         IReceiveInspectionRequestParser receiveInspectionRequestParser,
         IRegisterRequestHandler registerRequestHandler,
-        ITenantConfigHandler tenantConfigHandler,
         IInspectionQueryService inspectionQueryService,
-        IUserQueryService userQueryService,
-        IFormSchemaService formSchemaService,
-        ITranslationService translationService)
+        IUserQueryService userQueryService)
     {
         _inspectionRequestHandler = inspectionRequestHandler;
         _loginRequestHandler = loginRequestHandler;
         _receiveInspectionRequestParser = receiveInspectionRequestParser;
         _registerRequestHandler = registerRequestHandler;
-        _tenantConfigHandler = tenantConfigHandler;
         _inspectionQueryService = inspectionQueryService;
         _userQueryService = userQueryService;
-        _formSchemaService = formSchemaService;
-        _translationService = translationService;
     }
 
     [HttpPost(nameof(ReceiveInspection))]
@@ -141,99 +128,5 @@ public sealed class QHVACController : ControllerBase
     {
         var response = await _userQueryService.GetCurrentUserAsync(HttpContext.RequestAborted);
         return Ok(response);
-    }
-
-    [HttpGet("form-schemas")]
-    public async Task<ActionResult<FormSchemaCatalogResponse>> ListFormSchemas()
-    {
-        var response = await _formSchemaService.ListAsync(HttpContext.RequestAborted);
-        return Ok(response);
-    }
-
-    [HttpGet("form-schemas/{formType}")]
-    public async Task<ActionResult<FormSchemaResponse>> GetFormSchema([FromRoute] string formType)
-    {
-        if (string.IsNullOrWhiteSpace(formType))
-        {
-            return BadRequest("formType is required.");
-        }
-
-        var response = await _formSchemaService.GetAsync(formType, HttpContext.RequestAborted);
-        return response is null ? NotFound() : Ok(response);
-    }
-
-    [HttpPut("form-schemas/{formType}")]
-    public async Task<ActionResult<FormSchemaResponse>> UpsertFormSchema(
-        [FromRoute] string formType,
-        [FromBody] FormSchemaResponse request)
-    {
-        if (string.IsNullOrWhiteSpace(formType))
-        {
-            return BadRequest("formType is required.");
-        }
-
-        if (request is null || string.IsNullOrWhiteSpace(request.FormName) || request.Sections is null)
-        {
-            return BadRequest("A valid form schema payload is required.");
-        }
-
-        var response = await _formSchemaService.UpsertAsync(formType, request, HttpContext.RequestAborted);
-        return response is null ? NotFound() : Ok(response);
-    }
-
-    [HttpGet("translations/{language}")]
-    public async Task<ActionResult<TranslationsResponse>> GetTranslations([FromRoute] string language)
-    {
-        if (string.IsNullOrWhiteSpace(language))
-        {
-            return BadRequest("language is required.");
-        }
-
-        var response = await _translationService.GetAsync(language, HttpContext.RequestAborted);
-        return response is null ? NotFound() : Ok(response);
-    }
-
-    [HttpPut("translations/{language}")]
-    public async Task<ActionResult<TranslationsResponse>> UpsertTranslations(
-        [FromRoute] string language,
-        [FromBody] TranslationsResponse request)
-    {
-        if (string.IsNullOrWhiteSpace(language))
-        {
-            return BadRequest("language is required.");
-        }
-
-        if (request is null || string.IsNullOrWhiteSpace(request.LanguageName) || request.App is null)
-        {
-            return BadRequest("A valid translations payload is required.");
-        }
-
-        var response = await _translationService.UpsertAsync(language, request, HttpContext.RequestAborted);
-        return response is null ? NotFound() : Ok(response);
-    }
-
-    [HttpGet("tenant-config")]
-    public async Task<ActionResult<TenantBootstrapResponse>> GetTenantConfig([FromQuery] string? tenantId)
-    {
-        var tenantConfig = await _tenantConfigHandler.GetTenantConfigAsync(tenantId, HttpContext.RequestAborted);
-        return tenantConfig is null ? NotFound() : Ok(tenantConfig);
-    }
-
-    [HttpPost("tenant-config")]
-    public async Task<ActionResult<TenantBootstrapResponse>> UpsertTenantConfig([FromBody] TenantBootstrapResponse request)
-    {
-        if (string.IsNullOrWhiteSpace(request.TenantId) ||
-            string.IsNullOrWhiteSpace(request.DisplayName) ||
-            request.UiDefaults is null ||
-            string.IsNullOrWhiteSpace(request.UiDefaults.Theme) ||
-            string.IsNullOrWhiteSpace(request.UiDefaults.Font) ||
-            string.IsNullOrWhiteSpace(request.UiDefaults.Language) ||
-            request.EnabledForms is null)
-        {
-            return BadRequest("A valid tenant bootstrap payload is required.");
-        }
-
-        var tenantConfig = await _tenantConfigHandler.UpsertTenantConfigAsync(request, HttpContext.RequestAborted);
-        return Ok(tenantConfig);
     }
 }
