@@ -135,6 +135,48 @@ public sealed class SchemaEndpointsTests
         Assert.IsType<NotFoundResult>(result.Result);
     }
 
+    [Fact]
+    public async Task UpsertTranslations_ReturnsOkForKnownLanguage()
+    {
+        var controller = CreateController(new TableStorageOptions
+        {
+            ConnectionString = string.Empty
+        });
+
+        var payload = new TranslationsResponse(
+            LanguageName: "English",
+            App: new TranslationAppResponse(
+                Title: "Updated Title",
+                PoweredBy: "Powered By",
+                Brand: "QControl"));
+
+        var result = await controller.UpsertTranslations("en", payload);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var response = Assert.IsType<TranslationsResponse>(ok.Value);
+        Assert.Equal("Updated Title", response.App.Title);
+    }
+
+    [Fact]
+    public async Task UpsertTranslations_ReturnsNotFoundForUnknownLanguage()
+    {
+        var controller = CreateController(new TableStorageOptions
+        {
+            ConnectionString = string.Empty
+        });
+
+        var payload = new TranslationsResponse(
+            LanguageName: "French",
+            App: new TranslationAppResponse(
+                Title: "Titre",
+                PoweredBy: "Propulse par",
+                Brand: "QControl"));
+
+        var result = await controller.UpsertTranslations("fr", payload);
+
+        Assert.IsType<NotFoundResult>(result.Result);
+    }
+
     private static QHVACController CreateController(TableStorageOptions? tableOptions = null)
     {
         var controller = new QHVACController(

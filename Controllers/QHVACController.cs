@@ -410,6 +410,44 @@ public sealed class QHVACController : ControllerBase
         }
     }
 
+    [HttpPut("translations/{language}")]
+    public async Task<ActionResult<TranslationsResponse>> UpsertTranslations(
+        [FromRoute] string language,
+        [FromBody] TranslationsResponse request)
+    {
+        if (string.IsNullOrWhiteSpace(language))
+        {
+            return BadRequest("language is required.");
+        }
+
+        if (request is null || string.IsNullOrWhiteSpace(request.LanguageName) || request.App is null)
+        {
+            return BadRequest("A valid translations payload is required.");
+        }
+
+        if (!Translations.ContainsKey(language))
+        {
+            return NotFound();
+        }
+
+        if (string.IsNullOrWhiteSpace(_tableOptions.ConnectionString) ||
+            string.IsNullOrWhiteSpace(_tableOptions.TranslationsTableName))
+        {
+            Translations[language] = request;
+            return Ok(request);
+        }
+
+        var tableClient = _tableServiceClient.GetTableClient(_tableOptions.TranslationsTableName);
+        await tableClient.CreateIfNotExistsAsync(cancellationToken: HttpContext.RequestAborted);
+        await tableClient.UpsertEntityAsync(
+            TranslationEntity.FromResponse(language, request),
+            TableUpdateMode.Replace,
+            HttpContext.RequestAborted);
+
+        Translations[language] = request;
+        return Ok(request);
+    }
+
     [HttpGet("tenant-config")]
     public async Task<ActionResult<TenantBootstrapResponse>> GetTenantConfig()
     {
