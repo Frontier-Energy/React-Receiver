@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Azure;
 using Azure.Data.Tables;
 using React_Receiver.Models;
@@ -15,7 +16,7 @@ public sealed class TranslationService : ITranslationService
 {
     private readonly TableServiceClient _tableServiceClient;
     private readonly TableStorageOptions _tableOptions;
-    private readonly Dictionary<string, TranslationsResponse> _translations;
+    private readonly ConcurrentDictionary<string, TranslationsResponse> _translations;
 
     public TranslationService(
         TableServiceClient tableServiceClient,
@@ -24,9 +25,13 @@ public sealed class TranslationService : ITranslationService
     {
         _tableServiceClient = tableServiceClient;
         _tableOptions = tableOptions.Value;
-        _translations = bootstrapDataProvider
-            .GetTranslations()
-            .ToDictionary(item => item.Language, item => item.Payload, StringComparer.OrdinalIgnoreCase);
+        _translations = new ConcurrentDictionary<string, TranslationsResponse>(
+            bootstrapDataProvider
+                .GetTranslations()
+                .Select(item => new KeyValuePair<string, TranslationsResponse>(
+                    item.Language,
+                    item.Payload)),
+            StringComparer.OrdinalIgnoreCase);
     }
 
     public async Task<TranslationsResponse?> GetAsync(string language, CancellationToken cancellationToken)

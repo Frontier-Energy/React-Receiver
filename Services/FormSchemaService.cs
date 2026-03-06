@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Azure;
 using Azure.Data.Tables;
 using Azure.Storage.Blobs;
@@ -43,7 +44,7 @@ public sealed class FormSchemaService : IFormSchemaService
     private readonly TableStorageOptions _tableOptions;
     private readonly BlobStorageOptions _blobOptions;
     private readonly ILogger<FormSchemaService> _logger;
-    private readonly Dictionary<string, FormSchemaCatalogEntry> _formSchemaCatalog;
+    private readonly ConcurrentDictionary<string, FormSchemaCatalogEntry> _formSchemaCatalog;
 
     public FormSchemaService(
         BlobServiceClient blobServiceClient,
@@ -58,12 +59,13 @@ public sealed class FormSchemaService : IFormSchemaService
         _logger = logger;
         _blobOptions = blobOptions.Value;
         _tableOptions = tableOptions.Value;
-        _formSchemaCatalog = bootstrapDataProvider
-            .GetFormSchemas()
-            .ToDictionary(
-                item => item.FormType,
-                item => new FormSchemaCatalogEntry(item.Version, item.Etag, item.Schema),
-                StringComparer.OrdinalIgnoreCase);
+        _formSchemaCatalog = new ConcurrentDictionary<string, FormSchemaCatalogEntry>(
+            bootstrapDataProvider
+                .GetFormSchemas()
+                .Select(item => new KeyValuePair<string, FormSchemaCatalogEntry>(
+                    item.FormType,
+                    new FormSchemaCatalogEntry(item.Version, item.Etag, item.Schema))),
+            StringComparer.OrdinalIgnoreCase);
     }
 
     public async Task<FormSchemaCatalogResponse> ListAsync(CancellationToken cancellationToken)
