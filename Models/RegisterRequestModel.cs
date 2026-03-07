@@ -2,12 +2,26 @@ using System.ComponentModel.DataAnnotations;
 
 namespace React_Receiver.Models;
 
-public sealed record RegisterRequestModel(
-    [property: Required(AllowEmptyStrings = false)]
-    [property: EmailAddress]
-    string? Email,
-    [property: Required(AllowEmptyStrings = false)]
-    string? FirstName,
-    [property: Required(AllowEmptyStrings = false)]
-    string? LastName
-);
+public sealed record RegisterRequestModel
+{
+    public RegisterRequestModel()
+    {
+    }
+
+    public RegisterRequestModel(string? email, string? firstName, string? lastName)
+    {
+        Email = email;
+        FirstName = firstName;
+        LastName = lastName;
+    }
+
+    [Required(AllowEmptyStrings = false)]
+    [EmailAddress]
+    public string? Email { get; init; }
+
+    [Required(AllowEmptyStrings = false)]
+    public string? FirstName { get; init; }
+
+    [Required(AllowEmptyStrings = false)]
+    public string? LastName { get; init; }
+}

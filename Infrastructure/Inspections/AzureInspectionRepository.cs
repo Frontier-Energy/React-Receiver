@@ -46,13 +46,6 @@ public sealed class AzureInspectionRepository : IInspectionRepository
         if (!string.IsNullOrWhiteSpace(_blobOptions.ContainerName))
         {
             var containerClient = _blobServiceClient.GetBlobContainerClient(_blobOptions.ContainerName);
-            await _storageObserver.ExecuteAsync(
-                "blob",
-                _blobOptions.ContainerName,
-                "EnsureInspectionContainer",
-                ct => containerClient.CreateIfNotExistsAsync(cancellationToken: ct),
-                cancellationToken);
-
             var blobClient = containerClient.GetBlobClient($"{request.SessionId}.json");
             var fileMetadata = request.Files?
                 .Select(file => new { file.FileName, file.Length })
@@ -173,12 +166,6 @@ public sealed class AzureInspectionRepository : IInspectionRepository
 
         var sessionId = request.SessionId ?? string.Empty;
         var filesContainerClient = _blobServiceClient.GetBlobContainerClient(FilesContainerName);
-        await _storageObserver.ExecuteAsync(
-            "blob",
-            FilesContainerName,
-            "EnsureInspectionFilesContainer",
-            ct => filesContainerClient.CreateIfNotExistsAsync(cancellationToken: ct),
-            cancellationToken);
 
         for (var i = 0; i < request.Files.Length; i++)
         {
@@ -230,20 +217,16 @@ public sealed class AzureInspectionRepository : IInspectionRepository
             "table",
             _tableOptions.InspectionFilesTableName,
             "UpsertInspectionFileMetadata",
-            async ct =>
-            {
-                await tableClient.CreateIfNotExistsAsync(cancellationToken: ct);
-                await tableClient.UpsertEntityAsync(
-                    new InspectionFilesEntity
-                    {
-                        PartitionKey = InspectionFilesEntity.PartitionKeyValue,
-                        RowKey = sessionId,
-                        SessionId = sessionId,
-                        Files = JsonSerializer.Serialize(files)
-                    },
-                    TableUpdateMode.Replace,
-                    ct);
-            },
+            ct => tableClient.UpsertEntityAsync(
+                new InspectionFilesEntity
+                {
+                    PartitionKey = InspectionFilesEntity.PartitionKeyValue,
+                    RowKey = sessionId,
+                    SessionId = sessionId,
+                    Files = JsonSerializer.Serialize(files)
+                },
+                TableUpdateMode.Replace,
+                ct),
             cancellationToken);
     }
 
@@ -259,13 +242,9 @@ public sealed class AzureInspectionRepository : IInspectionRepository
             "queue",
             _queueOptions.QueueName,
             "SendInspectionQueueMessage",
-            async ct =>
-            {
-                await queueClient.CreateIfNotExistsAsync(cancellationToken: ct);
-                await queueClient.SendMessageAsync(
-                    JsonSerializer.Serialize(new { sessionId = request.SessionId ?? string.Empty }),
-                    ct);
-            },
+            ct => queueClient.SendMessageAsync(
+                JsonSerializer.Serialize(new { sessionId = request.SessionId ?? string.Empty }),
+                ct),
             cancellationToken);
     }
 

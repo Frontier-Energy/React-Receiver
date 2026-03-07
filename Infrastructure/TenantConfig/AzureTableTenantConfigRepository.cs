@@ -30,13 +30,6 @@ public sealed class AzureTableTenantConfigRepository : ITenantConfigRepository
     public async Task<TenantConfiguration?> GetAsync(string tenantId, CancellationToken cancellationToken)
     {
         var tableClient = _tableServiceClient.GetTableClient(_tableOptions.TenantConfigTableName);
-        await _storageObserver.ExecuteAsync(
-            "table",
-            _tableOptions.TenantConfigTableName,
-            "EnsureTenantConfigTable",
-            ct => tableClient.CreateIfNotExistsAsync(cancellationToken: ct),
-            cancellationToken);
-
         try
         {
             var response = await _storageObserver.ExecuteAsync(
@@ -87,14 +80,10 @@ public sealed class AzureTableTenantConfigRepository : ITenantConfigRepository
             "table",
             _tableOptions.TenantConfigTableName,
             "UpsertTenantConfig",
-            async ct =>
-            {
-                await tableClient.CreateIfNotExistsAsync(cancellationToken: ct);
-                await tableClient.UpsertEntityAsync(
-                    TenantConfigEntity.FromResponse(Map(tenantConfiguration)),
-                    TableUpdateMode.Replace,
-                    ct);
-            },
+            ct => tableClient.UpsertEntityAsync(
+                TenantConfigEntity.FromResponse(Map(tenantConfiguration)),
+                TableUpdateMode.Replace,
+                ct),
             cancellationToken);
         return tenantConfiguration;
     }

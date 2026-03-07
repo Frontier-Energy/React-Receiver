@@ -120,7 +120,7 @@ public sealed class SchemaEndpointsTests
     {
         var controller = CreateTranslationsController();
 
-        var result = await controller.GetTranslations(new TranslationLanguageRequest { Language = "es" });
+        var result = await controller.GetTranslations("es");
 
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         var response = Assert.IsType<TranslationsResponse>(ok.Value);
@@ -134,7 +134,7 @@ public sealed class SchemaEndpointsTests
     {
         var controller = CreateTranslationsController();
 
-        var result = await controller.GetTranslations(new TranslationLanguageRequest { Language = "fr" });
+        var result = await controller.GetTranslations("fr");
 
         Assert.IsType<NotFoundResult>(result.Result);
     }
@@ -155,7 +155,7 @@ public sealed class SchemaEndpointsTests
             }
         };
 
-        var result = await controller.UpsertTranslations(new TranslationLanguageRequest { Language = "en" }, payload);
+        var result = await controller.UpsertTranslations("en", payload);
 
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         var response = Assert.IsType<TranslationsResponse>(ok.Value);
@@ -180,7 +180,7 @@ public sealed class SchemaEndpointsTests
             }
         };
 
-        var result = await controller.UpsertTranslations(new TranslationLanguageRequest { Language = "fr" }, payload);
+        var result = await controller.UpsertTranslations("fr", payload);
 
         var created = Assert.IsType<CreatedAtActionResult>(result.Result);
         Assert.Equal(nameof(TranslationsController.GetTranslations), created.ActionName);

@@ -19,38 +19,38 @@ public sealed class TranslationsController : ControllerBase
     }
 
     [HttpGet("{language}")]
-    public async Task<ActionResult<TranslationsResponse>> GetTranslations([FromRoute] TranslationLanguageRequest request)
+    public async Task<ActionResult<TranslationsResponse>> GetTranslations([FromRoute] string language)
     {
-        var response = await _sender.Send(new GetTranslationsQuery(request.Language!), HttpContext.RequestAborted);
+        var response = await _sender.Send(new GetTranslationsQuery(language), HttpContext.RequestAborted);
         return response is null ? NotFound() : Ok(response);
     }
 
     [HttpPut("{language}")]
     public async Task<ActionResult<TranslationsResponse>> UpsertTranslations(
-        [FromRoute] TranslationLanguageRequest routeRequest,
+        [FromRoute] string language,
         [FromBody] TranslationsResponse request)
     {
         _logger.LogInformation(
             "Processing translations upsert for {Language}",
-            routeRequest.Language);
+            language);
         var response = await _sender.Send(
-            new UpsertTranslationsCommand(routeRequest.Language!, request),
+            new UpsertTranslationsCommand(language, request),
             HttpContext.RequestAborted);
         if (response.Created)
         {
             _logger.LogInformation(
                 "Created translations for {Language}",
-                routeRequest.Language);
+                language);
             return CreatedAtAction(
                 nameof(GetTranslations),
-                new { language = routeRequest.Language },
+                new { language },
                 response.Resource);
         }
 
-        Response.Headers.ContentLocation = $"/translations/{Uri.EscapeDataString(routeRequest.Language!)}";
+        Response.Headers.ContentLocation = $"/translations/{Uri.EscapeDataString(language)}";
         _logger.LogInformation(
             "Updated translations for {Language}",
-            routeRequest.Language);
+            language);
 
         return Ok(response.Resource);
     }

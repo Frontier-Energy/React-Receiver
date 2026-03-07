@@ -64,22 +64,29 @@ public sealed class AzureTableUserRepository : IUserRepository
             entity.PartitionKey == UserEntity.PartitionKeyValue &&
             entity.Email == email);
 
-        return await _storageObserver.ExecuteAsync(
-            "table",
-            _tableOptions.TableName,
-            "FindUserByEmail",
-            async ct =>
-            {
-                await foreach (var entity in tableClient.QueryAsync<UserEntity>(
-                                   filter: filter,
-                                   cancellationToken: ct))
+        try
+        {
+            return await _storageObserver.ExecuteAsync(
+                "table",
+                _tableOptions.TableName,
+                "FindUserByEmail",
+                async ct =>
                 {
-                    return new UserProfile(entity.UserId, entity.Email, entity.FirstName, entity.LastName);
-                }
+                    await foreach (var entity in tableClient.QueryAsync<UserEntity>(
+                                       filter: filter,
+                                       cancellationToken: ct))
+                    {
+                        return new UserProfile(entity.UserId, entity.Email, entity.FirstName, entity.LastName);
+                    }
 
-                return null;
-            },
-            cancellationToken);
+                    return null;
+                },
+                cancellationToken);
+        }
+        catch (RequestFailedException ex) when (ex.Status == 404)
+        {
+            return null;
+        }
     }
 
     public async Task AddAsync(UserProfile user, CancellationToken cancellationToken)
@@ -94,21 +101,17 @@ public sealed class AzureTableUserRepository : IUserRepository
             "table",
             _tableOptions.TableName,
             "AddUser",
-            async ct =>
-            {
-                await tableClient.CreateIfNotExistsAsync(cancellationToken: ct);
-                await tableClient.AddEntityAsync(
-                    new UserEntity
-                    {
-                        PartitionKey = UserEntity.PartitionKeyValue,
-                        RowKey = user.UserId,
-                        UserId = user.UserId,
-                        Email = user.Email,
-                        FirstName = user.FirstName,
-                        LastName = user.LastName
-                    },
-                    ct);
-            },
+            ct => tableClient.AddEntityAsync(
+                new UserEntity
+                {
+                    PartitionKey = UserEntity.PartitionKeyValue,
+                    RowKey = user.UserId,
+                    UserId = user.UserId,
+                    Email = user.Email,
+                    FirstName = user.FirstName,
+                    LastName = user.LastName
+                },
+                ct),
             cancellationToken);
     }
 
@@ -121,8 +124,6 @@ public sealed class AzureTableUserRepository : IUserRepository
         }
 
         var tableClient = _tableServiceClient.GetTableClient(_tableOptions.MeTableName);
-        await tableClient.CreateIfNotExistsAsync(cancellationToken: cancellationToken);
-
         try
         {
             var response = await _storageObserver.ExecuteAsync(
@@ -156,14 +157,10 @@ public sealed class AzureTableUserRepository : IUserRepository
             "table",
             _tableOptions.MeTableName,
             "SaveCurrentUser",
-            async ct =>
-            {
-                await tableClient.CreateIfNotExistsAsync(cancellationToken: ct);
-                await tableClient.UpsertEntityAsync(
-                    MeEntity.FromResponse(new MeResponse(user.UserId, user.Roles, user.Permissions)),
-                    TableUpdateMode.Replace,
-                    ct);
-            },
+            ct => tableClient.UpsertEntityAsync(
+                MeEntity.FromResponse(new MeResponse(user.UserId, user.Roles, user.Permissions)),
+                TableUpdateMode.Replace,
+                ct),
             cancellationToken);
     }
 }

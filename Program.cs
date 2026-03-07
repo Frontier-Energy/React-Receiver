@@ -104,6 +104,7 @@ builder.Services.AddTransient(typeof(IPipelineBehavior<,>), typeof(AuditBehavior
 builder.Services.AddTransient(typeof(IPipelineBehavior<,>), typeof(TransactionBehavior<,>));
 builder.Services.AddRequestValidation();
 builder.Services.AddHostedService<StartupHealthCheckHostedService>();
+builder.Services.AddHostedService<StorageInfrastructureHostedService>();
 builder.Services.AddHostedService<BootstrapDataHostedService>();
 
 var app = builder.Build();

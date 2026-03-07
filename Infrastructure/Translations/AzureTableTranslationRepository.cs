@@ -29,25 +29,20 @@ public sealed class AzureTableTranslationRepository : ITranslationRepository
     public async Task<TranslationsResponse?> GetAsync(string language, CancellationToken cancellationToken)
     {
         var tableClient = _tableServiceClient.GetTableClient(_tableOptions.TranslationsTableName);
-        await _storageObserver.ExecuteAsync(
-            "table",
-            _tableOptions.TranslationsTableName,
-            "EnsureTranslationsTable",
-            ct => tableClient.CreateIfNotExistsAsync(cancellationToken: ct),
-            cancellationToken);
-
         try
         {
             var response = await _storageObserver.ExecuteAsync(
                 "table",
                 _tableOptions.TranslationsTableName,
                 "GetTranslations",
-                ct => tableClient.GetEntityAsync<TranslationEntity>(
+                ct => tableClient.GetEntityIfExistsAsync<TranslationEntity>(
                     TranslationEntity.PartitionKeyValue,
                     language,
                     cancellationToken: ct),
                 cancellationToken);
-            return response.Value.ToResponse();
+            return response.HasValue
+                ? response.Value!.ToResponse()
+                : null;
         }
         catch (RequestFailedException ex) when (ex.Status == 404)
         {
@@ -60,16 +55,16 @@ public sealed class AzureTableTranslationRepository : ITranslationRepository
         var tableClient = _tableServiceClient.GetTableClient(_tableOptions.TranslationsTableName);
         try
         {
-            await _storageObserver.ExecuteAsync(
+            var response = await _storageObserver.ExecuteAsync(
                 "table",
                 _tableOptions.TranslationsTableName,
                 "TranslationsExists",
-                ct => tableClient.GetEntityAsync<TranslationEntity>(
+                ct => tableClient.GetEntityIfExistsAsync<TranslationEntity>(
                     TranslationEntity.PartitionKeyValue,
                     language,
                     cancellationToken: ct),
                 cancellationToken);
-            return true;
+            return response.HasValue;
         }
         catch (RequestFailedException ex) when (ex.Status == 404)
         {
@@ -83,12 +78,6 @@ public sealed class AzureTableTranslationRepository : ITranslationRepository
         CancellationToken cancellationToken)
     {
         var tableClient = _tableServiceClient.GetTableClient(_tableOptions.TranslationsTableName);
-        await _storageObserver.ExecuteAsync(
-            "table",
-            _tableOptions.TranslationsTableName,
-            "EnsureTranslationsTable",
-            ct => tableClient.CreateIfNotExistsAsync(cancellationToken: ct),
-            cancellationToken);
         var created = !await ExistsAsync(language, cancellationToken);
         await _storageObserver.ExecuteAsync(
             "table",

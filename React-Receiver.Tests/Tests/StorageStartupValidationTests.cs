@@ -98,6 +98,30 @@ public sealed class StorageStartupValidationTests
         Assert.Contains("TableStorage:TableName", missing);
     }
 
+    [Theory]
+    [InlineData("Infrastructure/Inspections/AzureInspectionRepository.cs")]
+    [InlineData("Infrastructure/TenantConfig/AzureTableTenantConfigRepository.cs")]
+    [InlineData("Infrastructure/Translations/AzureTableTranslationRepository.cs")]
+    [InlineData("Infrastructure/FormSchemas/AzureFormSchemaRepository.cs")]
+    [InlineData("Infrastructure/Users/AzureTableUserRepository.cs")]
+    public void RepositorySources_DoNotProvisionStorageInfrastructure_OnRequestPath(string relativePath)
+    {
+        var repositoryRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
+        var source = File.ReadAllText(Path.Combine(repositoryRoot, relativePath));
+
+        Assert.DoesNotContain("CreateIfNotExistsAsync", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("CreateIfNotExists(", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void UserRepository_FindByEmail_HandlesMissingUsersTable()
+    {
+        var repositoryRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
+        var source = File.ReadAllText(Path.Combine(repositoryRoot, "Infrastructure/Users/AzureTableUserRepository.cs"));
+
+        Assert.Contains("catch (RequestFailedException ex) when (ex.Status == 404)", source, StringComparison.Ordinal);
+    }
+
     private sealed class StubHealthCheckService : HealthCheckService
     {
         private readonly HealthReport _report;

@@ -42,13 +42,6 @@ public sealed class AzureFormSchemaRepository : IFormSchemaRepository
     public async Task<FormSchemaCatalogResponse> ListAsync(CancellationToken cancellationToken)
     {
         var tableClient = _tableServiceClient.GetTableClient(_tableOptions.FormSchemaCatalogTableName);
-        await _storageObserver.ExecuteAsync(
-            "table",
-            _tableOptions.FormSchemaCatalogTableName,
-            "EnsureFormSchemaCatalogTable",
-            ct => tableClient.CreateIfNotExistsAsync(cancellationToken: ct),
-            cancellationToken);
-
         return await _storageObserver.ExecuteAsync(
             "table",
             _tableOptions.FormSchemaCatalogTableName,
@@ -71,13 +64,6 @@ public sealed class AzureFormSchemaRepository : IFormSchemaRepository
     public async Task<FormSchemaResponse?> GetAsync(string formType, CancellationToken cancellationToken)
     {
         var tableClient = _tableServiceClient.GetTableClient(_tableOptions.FormSchemasTableName);
-        await _storageObserver.ExecuteAsync(
-            "table",
-            _tableOptions.FormSchemasTableName,
-            "EnsureFormSchemasTable",
-            ct => tableClient.CreateIfNotExistsAsync(cancellationToken: ct),
-            cancellationToken);
-
         try
         {
             var response = await _storageObserver.ExecuteAsync(
@@ -133,12 +119,6 @@ public sealed class AzureFormSchemaRepository : IFormSchemaRepository
             $"\"{formType}-{now:yyyyMMddHHmmssfff}\"");
 
         var schemasTableClient = _tableServiceClient.GetTableClient(_tableOptions.FormSchemasTableName);
-        await _storageObserver.ExecuteAsync(
-            "table",
-            _tableOptions.FormSchemasTableName,
-            "EnsureFormSchemasTable",
-            ct => schemasTableClient.CreateIfNotExistsAsync(cancellationToken: ct),
-            cancellationToken);
         await UpsertSchemaEntityAsync(schemasTableClient, formType, request, cancellationToken);
 
         var catalogTableClient = _tableServiceClient.GetTableClient(_tableOptions.FormSchemaCatalogTableName);
@@ -146,14 +126,10 @@ public sealed class AzureFormSchemaRepository : IFormSchemaRepository
             "table",
             _tableOptions.FormSchemaCatalogTableName,
             "UpsertFormSchemaCatalog",
-            async ct =>
-            {
-                await catalogTableClient.CreateIfNotExistsAsync(cancellationToken: ct);
-                await catalogTableClient.UpsertEntityAsync(
-                    FormSchemaCatalogItemEntity.FromResponse(catalogItem),
-                    TableUpdateMode.Replace,
-                    ct);
-            },
+            ct => catalogTableClient.UpsertEntityAsync(
+                FormSchemaCatalogItemEntity.FromResponse(catalogItem),
+                TableUpdateMode.Replace,
+                ct),
             cancellationToken);
 
         return new UpsertResult<FormSchemaResponse>(request, created, catalogItem.Version, catalogItem.Etag);
@@ -227,13 +203,6 @@ public sealed class AzureFormSchemaRepository : IFormSchemaRepository
         CancellationToken cancellationToken)
     {
         var containerClient = _blobServiceClient.GetBlobContainerClient(_blobOptions.ContainerName);
-        await _storageObserver.ExecuteAsync(
-            "blob",
-            _blobOptions.ContainerName,
-            "EnsureSchemaContainer",
-            ct => containerClient.CreateIfNotExistsAsync(cancellationToken: ct),
-            cancellationToken);
-
         var blobName = $"form-schemas/{formType}.json";
         var blobClient = containerClient.GetBlobClient(blobName);
         await _storageObserver.ExecuteAsync(
