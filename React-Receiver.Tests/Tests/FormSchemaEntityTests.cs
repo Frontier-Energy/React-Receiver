@@ -1,5 +1,6 @@
 using React_Receiver.Models;
 using React_Receiver.Infrastructure.FormSchemas;
+using React_Receiver.Observability;
 using React_Receiver.Services;
 using Azure.Storage.Blobs;
 using Azure.Data.Tables;
@@ -47,6 +48,7 @@ public sealed class FormSchemaEntityTests
             new BlobServiceClient("UseDevelopmentStorage=true"),
             new TableServiceClient("UseDevelopmentStorage=true"),
             NullLogger<AzureFormSchemaRepository>.Instance,
+            new StorageOperationObserver(NullLogger<StorageOperationObserver>.Instance),
             Options.Create(new BlobStorageOptions()),
             Options.Create(new TableStorageOptions()));
         var entity = new FormSchemaEntity
