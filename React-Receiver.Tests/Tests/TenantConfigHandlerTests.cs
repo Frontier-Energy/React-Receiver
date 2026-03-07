@@ -63,7 +63,9 @@ public sealed class TenantConfigHandlerTests
 
     private static TenantConfigApplicationService CreateHandler()
     {
-        return new TenantConfigApplicationService(new DisabledTenantConfigRepository(), new FileBootstrapDataProvider());
+        return new TenantConfigApplicationService(
+            new DisabledTenantConfigRepository(),
+            new TenantConfigSeedStore(new FileBootstrapDataProvider()));
     }
 
     private sealed class DisabledTenantConfigRepository : ITenantConfigRepository

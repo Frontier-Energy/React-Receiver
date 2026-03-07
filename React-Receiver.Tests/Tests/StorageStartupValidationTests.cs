@@ -128,7 +128,7 @@ public sealed class StorageStartupValidationTests
     public void Program_RegistersStorageInfrastructureHostedService_BeforeStartupHealthChecks()
     {
         var repositoryRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
-        var source = File.ReadAllText(Path.Combine(repositoryRoot, "Program.cs"));
+        var source = File.ReadAllText(Path.Combine(repositoryRoot, "Services/ServiceCollectionExtensions.cs"));
 
         var storageIndex = source.IndexOf("AddHostedService<StorageInfrastructureHostedService>()", StringComparison.Ordinal);
         var startupIndex = source.IndexOf("AddHostedService<StartupHealthCheckHostedService>()", StringComparison.Ordinal);

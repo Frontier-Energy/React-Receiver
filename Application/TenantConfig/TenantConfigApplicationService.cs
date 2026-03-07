@@ -1,24 +1,20 @@
 using React_Receiver.Domain.Tenants;
 using React_Receiver.Infrastructure.TenantConfig;
 using React_Receiver.Models;
-using React_Receiver.Services;
 
 namespace React_Receiver.Application.TenantConfig;
 
 public sealed class TenantConfigApplicationService : ITenantConfigApplicationService
 {
     private readonly ITenantConfigRepository _repository;
-    private readonly Dictionary<string, TenantConfiguration> _tenantConfigs;
+    private readonly ITenantConfigSeedStore _seedStore;
 
     public TenantConfigApplicationService(
         ITenantConfigRepository repository,
-        IBootstrapDataProvider bootstrapDataProvider)
+        ITenantConfigSeedStore seedStore)
     {
         _repository = repository;
-        _tenantConfigs = bootstrapDataProvider
-            .GetTenantConfigs()
-            .Select(item => Map(item.Payload))
-            .ToDictionary(item => item.TenantId, item => item, StringComparer.OrdinalIgnoreCase);
+        _seedStore = seedStore;
     }
 
     public async Task<TenantBootstrapResponse?> GetAsync(string? tenantId, CancellationToken cancellationToken)
@@ -27,7 +23,7 @@ public sealed class TenantConfigApplicationService : ITenantConfigApplicationSer
 
         if (!_repository.IsConfigured)
         {
-            return _tenantConfigs.TryGetValue(normalizedTenantId, out var config) ? Map(config) : null;
+            return _seedStore.Get(normalizedTenantId);
         }
 
         var configuration = await _repository.GetAsync(normalizedTenantId, cancellationToken);
@@ -43,9 +39,7 @@ public sealed class TenantConfigApplicationService : ITenantConfigApplicationSer
 
         if (!_repository.IsConfigured)
         {
-            var created = !_tenantConfigs.ContainsKey(normalized.TenantId);
-            _tenantConfigs[normalized.TenantId] = normalized;
-            return new UpsertResult<TenantBootstrapResponse>(Map(normalized), created);
+            return _seedStore.Upsert(normalized);
         }
 
         var createdInRepository = !await _repository.ExistsAsync(normalized.TenantId, cancellationToken);
@@ -60,7 +54,7 @@ public sealed class TenantConfigApplicationService : ITenantConfigApplicationSer
             return;
         }
 
-        foreach (var tenantConfig in _tenantConfigs)
+        foreach (var tenantConfig in _seedStore.GetAll())
         {
             if (!overwriteExisting && await _repository.ExistsAsync(tenantConfig.Key, cancellationToken))
             {
