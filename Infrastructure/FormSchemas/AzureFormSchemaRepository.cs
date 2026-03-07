@@ -4,6 +4,7 @@ using Azure.Storage.Blobs;
 using Microsoft.Extensions.Logging;
 using React_Receiver.Application.FormSchemas;
 using React_Receiver.Models;
+using React_Receiver.Observability;
 using React_Receiver.Services;
 
 namespace React_Receiver.Infrastructure.FormSchemas;
@@ -15,17 +16,20 @@ public sealed class AzureFormSchemaRepository : IFormSchemaRepository
     private readonly TableStorageOptions _tableOptions;
     private readonly BlobStorageOptions _blobOptions;
     private readonly ILogger<AzureFormSchemaRepository> _logger;
+    private readonly IStorageOperationObserver _storageObserver;
 
     public AzureFormSchemaRepository(
         BlobServiceClient blobServiceClient,
         TableServiceClient tableServiceClient,
         ILogger<AzureFormSchemaRepository> logger,
+        IStorageOperationObserver storageObserver,
         Microsoft.Extensions.Options.IOptions<BlobStorageOptions> blobOptions,
         Microsoft.Extensions.Options.IOptions<TableStorageOptions> tableOptions)
     {
         _blobServiceClient = blobServiceClient;
         _tableServiceClient = tableServiceClient;
         _logger = logger;
+        _storageObserver = storageObserver;
         _blobOptions = blobOptions.Value;
         _tableOptions = tableOptions.Value;
     }
@@ -38,30 +42,53 @@ public sealed class AzureFormSchemaRepository : IFormSchemaRepository
     public async Task<FormSchemaCatalogResponse> ListAsync(CancellationToken cancellationToken)
     {
         var tableClient = _tableServiceClient.GetTableClient(_tableOptions.FormSchemaCatalogTableName);
-        await tableClient.CreateIfNotExistsAsync(cancellationToken: cancellationToken);
+        await _storageObserver.ExecuteAsync(
+            "table",
+            _tableOptions.FormSchemaCatalogTableName,
+            "EnsureFormSchemaCatalogTable",
+            ct => tableClient.CreateIfNotExistsAsync(cancellationToken: ct),
+            cancellationToken);
 
-        var items = new List<FormSchemaCatalogItemResponse>();
-        await foreach (var entity in tableClient.QueryAsync<FormSchemaCatalogItemEntity>(
-                           e => e.PartitionKey == FormSchemaCatalogItemEntity.PartitionKeyValue,
-                           cancellationToken: cancellationToken))
-        {
-            items.Add(entity.ToResponse());
-        }
+        return await _storageObserver.ExecuteAsync(
+            "table",
+            _tableOptions.FormSchemaCatalogTableName,
+            "ListFormSchemas",
+            async ct =>
+            {
+                var items = new List<FormSchemaCatalogItemResponse>();
+                await foreach (var entity in tableClient.QueryAsync<FormSchemaCatalogItemEntity>(
+                                   e => e.PartitionKey == FormSchemaCatalogItemEntity.PartitionKeyValue,
+                                   cancellationToken: ct))
+                {
+                    items.Add(entity.ToResponse());
+                }
 
-        return new FormSchemaCatalogResponse(items.ToArray());
+                return new FormSchemaCatalogResponse(items.ToArray());
+            },
+            cancellationToken);
     }
 
     public async Task<FormSchemaResponse?> GetAsync(string formType, CancellationToken cancellationToken)
     {
         var tableClient = _tableServiceClient.GetTableClient(_tableOptions.FormSchemasTableName);
-        await tableClient.CreateIfNotExistsAsync(cancellationToken: cancellationToken);
+        await _storageObserver.ExecuteAsync(
+            "table",
+            _tableOptions.FormSchemasTableName,
+            "EnsureFormSchemasTable",
+            ct => tableClient.CreateIfNotExistsAsync(cancellationToken: ct),
+            cancellationToken);
 
         try
         {
-            var response = await tableClient.GetEntityAsync<FormSchemaEntity>(
-                FormSchemaEntity.PartitionKeyValue,
-                formType,
-                cancellationToken: cancellationToken);
+            var response = await _storageObserver.ExecuteAsync(
+                "table",
+                _tableOptions.FormSchemasTableName,
+                "GetFormSchema",
+                ct => tableClient.GetEntityAsync<FormSchemaEntity>(
+                    FormSchemaEntity.PartitionKeyValue,
+                    formType,
+                    cancellationToken: ct),
+                cancellationToken);
             return await ReadSchemaAsync(response.Value, cancellationToken);
         }
         catch (RequestFailedException ex) when (ex.Status == 404)
@@ -76,10 +103,15 @@ public sealed class AzureFormSchemaRepository : IFormSchemaRepository
         var tableClient = _tableServiceClient.GetTableClient(_tableOptions.FormSchemasTableName);
         try
         {
-            await tableClient.GetEntityAsync<FormSchemaEntity>(
-                FormSchemaEntity.PartitionKeyValue,
-                formType,
-                cancellationToken: cancellationToken);
+            await _storageObserver.ExecuteAsync(
+                "table",
+                _tableOptions.FormSchemasTableName,
+                "FormSchemaExists",
+                ct => tableClient.GetEntityAsync<FormSchemaEntity>(
+                    FormSchemaEntity.PartitionKeyValue,
+                    formType,
+                    cancellationToken: ct),
+                cancellationToken);
             return true;
         }
         catch (RequestFailedException ex) when (ex.Status == 404)
@@ -101,14 +133,27 @@ public sealed class AzureFormSchemaRepository : IFormSchemaRepository
             $"\"{formType}-{now:yyyyMMddHHmmssfff}\"");
 
         var schemasTableClient = _tableServiceClient.GetTableClient(_tableOptions.FormSchemasTableName);
-        await schemasTableClient.CreateIfNotExistsAsync(cancellationToken: cancellationToken);
+        await _storageObserver.ExecuteAsync(
+            "table",
+            _tableOptions.FormSchemasTableName,
+            "EnsureFormSchemasTable",
+            ct => schemasTableClient.CreateIfNotExistsAsync(cancellationToken: ct),
+            cancellationToken);
         await UpsertSchemaEntityAsync(schemasTableClient, formType, request, cancellationToken);
 
         var catalogTableClient = _tableServiceClient.GetTableClient(_tableOptions.FormSchemaCatalogTableName);
-        await catalogTableClient.CreateIfNotExistsAsync(cancellationToken: cancellationToken);
-        await catalogTableClient.UpsertEntityAsync(
-            FormSchemaCatalogItemEntity.FromResponse(catalogItem),
-            TableUpdateMode.Replace,
+        await _storageObserver.ExecuteAsync(
+            "table",
+            _tableOptions.FormSchemaCatalogTableName,
+            "UpsertFormSchemaCatalog",
+            async ct =>
+            {
+                await catalogTableClient.CreateIfNotExistsAsync(cancellationToken: ct);
+                await catalogTableClient.UpsertEntityAsync(
+                    FormSchemaCatalogItemEntity.FromResponse(catalogItem),
+                    TableUpdateMode.Replace,
+                    ct);
+            },
             cancellationToken);
 
         return new UpsertResult<FormSchemaResponse>(request, created, catalogItem.Version, catalogItem.Etag);
@@ -165,9 +210,14 @@ public sealed class AzureFormSchemaRepository : IFormSchemaRepository
     {
         EnsureBlobStorageConfigured();
         var schemaBlobName = await UploadSchemaAsync(formType, schema, cancellationToken);
-        await tableClient.UpsertEntityAsync(
-            FormSchemaEntity.FromResponse(formType, schemaBlobName),
-            TableUpdateMode.Replace,
+        await _storageObserver.ExecuteAsync(
+            "table",
+            _tableOptions.FormSchemasTableName,
+            "UpsertFormSchemaMetadata",
+            ct => tableClient.UpsertEntityAsync(
+                FormSchemaEntity.FromResponse(formType, schemaBlobName),
+                TableUpdateMode.Replace,
+                ct),
             cancellationToken);
     }
 
@@ -177,11 +227,21 @@ public sealed class AzureFormSchemaRepository : IFormSchemaRepository
         CancellationToken cancellationToken)
     {
         var containerClient = _blobServiceClient.GetBlobContainerClient(_blobOptions.ContainerName);
-        await containerClient.CreateIfNotExistsAsync(cancellationToken: cancellationToken);
+        await _storageObserver.ExecuteAsync(
+            "blob",
+            _blobOptions.ContainerName,
+            "EnsureSchemaContainer",
+            ct => containerClient.CreateIfNotExistsAsync(cancellationToken: ct),
+            cancellationToken);
 
         var blobName = $"form-schemas/{formType}.json";
         var blobClient = containerClient.GetBlobClient(blobName);
-        await blobClient.UploadAsync(BinaryData.FromObjectAsJson(schema), overwrite: true, cancellationToken);
+        await _storageObserver.ExecuteAsync(
+            "blob",
+            _blobOptions.ContainerName,
+            "UploadFormSchema",
+            ct => blobClient.UploadAsync(BinaryData.FromObjectAsJson(schema), overwrite: true, ct),
+            cancellationToken);
         return blobName;
     }
 
@@ -192,12 +252,22 @@ public sealed class AzureFormSchemaRepository : IFormSchemaRepository
 
         try
         {
-            if (!await blobClient.ExistsAsync(cancellationToken))
+            if (!await _storageObserver.ExecuteAsync(
+                    "blob",
+                    _blobOptions.ContainerName,
+                    "FormSchemaBlobExists",
+                    ct => blobClient.ExistsAsync(ct),
+                    cancellationToken))
             {
                 throw new FormSchemaBlobContentException($"Form schema blob '{blobName}' was not found.");
             }
 
-            var content = await blobClient.DownloadContentAsync(cancellationToken);
+            var content = await _storageObserver.ExecuteAsync(
+                "blob",
+                _blobOptions.ContainerName,
+                "DownloadFormSchema",
+                ct => blobClient.DownloadContentAsync(ct),
+                cancellationToken);
             return content.Value.Content.ToObjectFromJson<FormSchemaResponse>()
                 ?? throw new FormSchemaBlobContentException($"Form schema blob '{blobName}' did not contain a valid payload.");
         }

@@ -1,6 +1,7 @@
 using System;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging.Abstractions;
 using React_Receiver.Application.TenantConfig;
 using React_Receiver.Controllers;
 using React_Receiver.Models;
@@ -126,7 +127,7 @@ public sealed class TenantConfigTests
                         false)),
                 _ => throw new NotSupportedException()
             };
-        }))
+        }), NullLogger<TenantConfigController>.Instance)
         {
             ControllerContext = new ControllerContext
             {

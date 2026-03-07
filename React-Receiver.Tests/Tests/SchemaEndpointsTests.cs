@@ -1,6 +1,7 @@
 using System;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging.Abstractions;
 using React_Receiver.Application.FormSchemas;
 using React_Receiver.Application.Translations;
 using React_Receiver.Application.Users;
@@ -201,7 +202,7 @@ public sealed class SchemaEndpointsTests
                 GetUserQuery => throw new NotSupportedException(),
                 _ => throw new NotSupportedException()
             };
-        }))
+        }), NullLogger<UsersController>.Instance)
         {
             ControllerContext = new ControllerContext
             {
@@ -253,7 +254,7 @@ public sealed class SchemaEndpointsTests
                         "\"hvac-v2\"")),
                 _ => throw new NotSupportedException()
             };
-        }))
+        }), NullLogger<FormSchemasController>.Instance)
         {
             ControllerContext = new ControllerContext
             {
@@ -286,7 +287,7 @@ public sealed class SchemaEndpointsTests
                     => Task.FromResult<object?>(new UpsertResult<TranslationsResponse>(upsert.Request, false)),
                 _ => throw new NotSupportedException()
             };
-        }))
+        }), NullLogger<TranslationsController>.Instance)
         {
             ControllerContext = new ControllerContext
             {

@@ -23,7 +23,7 @@ public sealed class UnhandledExceptionBehavior<TRequest, TResponse> : IPipelineB
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Unhandled exception for {RequestName}", typeof(TRequest).Name);
+            _logger.LogError(ex, "Unhandled exception for MediatR request {RequestName}", typeof(TRequest).Name);
             throw;
         }
     }

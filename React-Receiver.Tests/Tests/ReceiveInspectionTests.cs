@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging.Abstractions;
 using React_Receiver.Application.Inspections;
 using React_Receiver.Controllers;
 using React_Receiver.Handlers;
@@ -79,7 +80,7 @@ public sealed class ReceiveInspectionTests
 
     private static InspectionsController CreateController(Func<object, CancellationToken, Task<object?>> handler)
     {
-        var controller = new InspectionsController(new TestSender(handler))
+        var controller = new InspectionsController(new TestSender(handler), NullLogger<InspectionsController>.Instance)
         {
             ControllerContext = new ControllerContext
             {

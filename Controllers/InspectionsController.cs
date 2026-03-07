@@ -10,10 +10,12 @@ namespace React_Receiver.Controllers;
 public sealed class InspectionsController : ControllerBase
 {
     private readonly ISender _sender;
+    private readonly ILogger<InspectionsController> _logger;
 
-    public InspectionsController(ISender sender)
+    public InspectionsController(ISender sender, ILogger<InspectionsController> logger)
     {
         _sender = sender;
+        _logger = logger;
     }
 
     [HttpPost]
@@ -21,7 +23,14 @@ public sealed class InspectionsController : ControllerBase
     public async Task<ActionResult<ReceiveInspectionResponse>> ReceiveInspection(
         [FromForm] ReceiveInspectionFormRequest request)
     {
+        _logger.LogInformation(
+            "Processing inspection ingestion request with {FileCount} uploaded files",
+            request.Files?.Length ?? 0);
         var response = await _sender.Send(new ReceiveInspectionCommand(request), HttpContext.RequestAborted);
+        _logger.LogInformation(
+            "Completed inspection ingestion for {SessionId} with status {Status}",
+            response.SessionId,
+            response.Status);
         return Ok(response);
     }
 

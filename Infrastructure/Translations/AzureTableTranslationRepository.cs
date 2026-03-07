@@ -1,6 +1,7 @@
 using Azure;
 using Azure.Data.Tables;
 using React_Receiver.Models;
+using React_Receiver.Observability;
 using React_Receiver.Services;
 
 namespace React_Receiver.Infrastructure.Translations;
@@ -9,13 +10,16 @@ public sealed class AzureTableTranslationRepository : ITranslationRepository
 {
     private readonly TableServiceClient _tableServiceClient;
     private readonly TableStorageOptions _tableOptions;
+    private readonly IStorageOperationObserver _storageObserver;
 
     public AzureTableTranslationRepository(
         TableServiceClient tableServiceClient,
-        Microsoft.Extensions.Options.IOptions<TableStorageOptions> tableOptions)
+        Microsoft.Extensions.Options.IOptions<TableStorageOptions> tableOptions,
+        IStorageOperationObserver storageObserver)
     {
         _tableServiceClient = tableServiceClient;
         _tableOptions = tableOptions.Value;
+        _storageObserver = storageObserver;
     }
 
     public bool IsConfigured =>
@@ -25,14 +29,24 @@ public sealed class AzureTableTranslationRepository : ITranslationRepository
     public async Task<TranslationsResponse?> GetAsync(string language, CancellationToken cancellationToken)
     {
         var tableClient = _tableServiceClient.GetTableClient(_tableOptions.TranslationsTableName);
-        await tableClient.CreateIfNotExistsAsync(cancellationToken: cancellationToken);
+        await _storageObserver.ExecuteAsync(
+            "table",
+            _tableOptions.TranslationsTableName,
+            "EnsureTranslationsTable",
+            ct => tableClient.CreateIfNotExistsAsync(cancellationToken: ct),
+            cancellationToken);
 
         try
         {
-            var response = await tableClient.GetEntityAsync<TranslationEntity>(
-                TranslationEntity.PartitionKeyValue,
-                language,
-                cancellationToken: cancellationToken);
+            var response = await _storageObserver.ExecuteAsync(
+                "table",
+                _tableOptions.TranslationsTableName,
+                "GetTranslations",
+                ct => tableClient.GetEntityAsync<TranslationEntity>(
+                    TranslationEntity.PartitionKeyValue,
+                    language,
+                    cancellationToken: ct),
+                cancellationToken);
             return response.Value.ToResponse();
         }
         catch (RequestFailedException ex) when (ex.Status == 404)
@@ -46,10 +60,15 @@ public sealed class AzureTableTranslationRepository : ITranslationRepository
         var tableClient = _tableServiceClient.GetTableClient(_tableOptions.TranslationsTableName);
         try
         {
-            await tableClient.GetEntityAsync<TranslationEntity>(
-                TranslationEntity.PartitionKeyValue,
-                language,
-                cancellationToken: cancellationToken);
+            await _storageObserver.ExecuteAsync(
+                "table",
+                _tableOptions.TranslationsTableName,
+                "TranslationsExists",
+                ct => tableClient.GetEntityAsync<TranslationEntity>(
+                    TranslationEntity.PartitionKeyValue,
+                    language,
+                    cancellationToken: ct),
+                cancellationToken);
             return true;
         }
         catch (RequestFailedException ex) when (ex.Status == 404)
@@ -64,11 +83,21 @@ public sealed class AzureTableTranslationRepository : ITranslationRepository
         CancellationToken cancellationToken)
     {
         var tableClient = _tableServiceClient.GetTableClient(_tableOptions.TranslationsTableName);
-        await tableClient.CreateIfNotExistsAsync(cancellationToken: cancellationToken);
+        await _storageObserver.ExecuteAsync(
+            "table",
+            _tableOptions.TranslationsTableName,
+            "EnsureTranslationsTable",
+            ct => tableClient.CreateIfNotExistsAsync(cancellationToken: ct),
+            cancellationToken);
         var created = !await ExistsAsync(language, cancellationToken);
-        await tableClient.UpsertEntityAsync(
-            TranslationEntity.FromResponse(language, request),
-            TableUpdateMode.Replace,
+        await _storageObserver.ExecuteAsync(
+            "table",
+            _tableOptions.TranslationsTableName,
+            "UpsertTranslations",
+            ct => tableClient.UpsertEntityAsync(
+                TranslationEntity.FromResponse(language, request),
+                TableUpdateMode.Replace,
+                ct),
             cancellationToken);
         return new UpsertResult<TranslationsResponse>(request, created);
     }

@@ -1,4 +1,7 @@
+using System.Diagnostics;
+using System.Diagnostics.Metrics;
 using MediatR;
+using React_Receiver.Observability;
 
 namespace React_Receiver.Mediation.Behaviors;
 
@@ -18,11 +21,44 @@ public sealed class LoggingBehavior<TRequest, TResponse> : IPipelineBehavior<TRe
         CancellationToken cancellationToken)
     {
         var requestName = typeof(TRequest).Name;
-        _logger.LogInformation("Handling {RequestName}", requestName);
+        var startedAt = Stopwatch.GetTimestamp();
 
-        var response = await next();
+        using var scope = _logger.BeginScope(new Dictionary<string, object?>
+        {
+            ["MediatorRequest"] = requestName
+        });
 
-        _logger.LogInformation("Handled {RequestName}", requestName);
-        return response;
+        try
+        {
+            _logger.LogInformation("Handling MediatR request {RequestName}", requestName);
+
+            var response = await next();
+            var elapsedMs = Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds;
+
+            ReceiverTelemetry.MediatorRequestDurationMs.Record(
+                elapsedMs,
+                new TagList
+                {
+                    { "mediatr.request", requestName },
+                    { "outcome", "success" }
+                });
+            _logger.LogInformation(
+                "Handled MediatR request {RequestName} in {ElapsedMs}ms",
+                requestName,
+                elapsedMs);
+            return response;
+        }
+        catch
+        {
+            var elapsedMs = Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds;
+            ReceiverTelemetry.MediatorRequestDurationMs.Record(
+                elapsedMs,
+                new TagList
+                {
+                    { "mediatr.request", requestName },
+                    { "outcome", "failure" }
+                });
+            throw;
+        }
     }
 }

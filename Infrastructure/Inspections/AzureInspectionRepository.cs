@@ -5,6 +5,7 @@ using Azure.Storage.Blobs;
 using Azure.Storage.Queues;
 using React_Receiver.Domain.Inspections;
 using React_Receiver.Models;
+using React_Receiver.Observability;
 using React_Receiver.Services;
 
 namespace React_Receiver.Infrastructure.Inspections;
@@ -18,6 +19,7 @@ public sealed class AzureInspectionRepository : IInspectionRepository
     private readonly BlobStorageOptions _blobOptions;
     private readonly QueueStorageOptions _queueOptions;
     private readonly TableStorageOptions _tableOptions;
+    private readonly IStorageOperationObserver _storageObserver;
 
     public AzureInspectionRepository(
         BlobServiceClient blobServiceClient,
@@ -25,7 +27,8 @@ public sealed class AzureInspectionRepository : IInspectionRepository
         TableServiceClient tableServiceClient,
         Microsoft.Extensions.Options.IOptions<BlobStorageOptions> blobOptions,
         Microsoft.Extensions.Options.IOptions<QueueStorageOptions> queueOptions,
-        Microsoft.Extensions.Options.IOptions<TableStorageOptions> tableOptions)
+        Microsoft.Extensions.Options.IOptions<TableStorageOptions> tableOptions,
+        IStorageOperationObserver storageObserver)
     {
         _blobServiceClient = blobServiceClient;
         _queueServiceClient = queueServiceClient;
@@ -33,6 +36,7 @@ public sealed class AzureInspectionRepository : IInspectionRepository
         _blobOptions = blobOptions.Value;
         _queueOptions = queueOptions.Value;
         _tableOptions = tableOptions.Value;
+        _storageObserver = storageObserver;
     }
 
     public async Task<ReceiveInspectionResponse> SaveAsync(
@@ -42,7 +46,12 @@ public sealed class AzureInspectionRepository : IInspectionRepository
         if (!string.IsNullOrWhiteSpace(_blobOptions.ContainerName))
         {
             var containerClient = _blobServiceClient.GetBlobContainerClient(_blobOptions.ContainerName);
-            await containerClient.CreateIfNotExistsAsync(cancellationToken: cancellationToken);
+            await _storageObserver.ExecuteAsync(
+                "blob",
+                _blobOptions.ContainerName,
+                "EnsureInspectionContainer",
+                ct => containerClient.CreateIfNotExistsAsync(cancellationToken: ct),
+                cancellationToken);
 
             var blobClient = containerClient.GetBlobClient($"{request.SessionId}.json");
             var fileMetadata = request.Files?
@@ -61,7 +70,12 @@ public sealed class AzureInspectionRepository : IInspectionRepository
             await using var stream = new MemoryStream();
             await JsonSerializer.SerializeAsync(stream, payload, cancellationToken: cancellationToken);
             stream.Position = 0;
-            await blobClient.UploadAsync(stream, overwrite: true, cancellationToken);
+            await _storageObserver.ExecuteAsync(
+                "blob",
+                _blobOptions.ContainerName,
+                "UploadInspectionPayload",
+                ct => blobClient.UploadAsync(stream, overwrite: true, ct),
+                cancellationToken);
         }
 
         await SaveFilesAsync(request, cancellationToken);
@@ -85,7 +99,12 @@ public sealed class AzureInspectionRepository : IInspectionRepository
 
         var containerClient = _blobServiceClient.GetBlobContainerClient(_blobOptions.ContainerName);
         var blobClient = containerClient.GetBlobClient($"{sessionId}.json");
-        if (!await blobClient.ExistsAsync(cancellationToken))
+        if (!await _storageObserver.ExecuteAsync(
+                "blob",
+                _blobOptions.ContainerName,
+                "InspectionPayloadExists",
+                ct => blobClient.ExistsAsync(ct),
+                cancellationToken))
         {
             return null;
         }
@@ -123,12 +142,22 @@ public sealed class AzureInspectionRepository : IInspectionRepository
 
         var containerClient = _blobServiceClient.GetBlobContainerClient(FilesContainerName);
         var blobClient = containerClient.GetBlobClient($"{sessionId}-{safeFileName}");
-        if (!await blobClient.ExistsAsync(cancellationToken))
+        if (!await _storageObserver.ExecuteAsync(
+                "blob",
+                FilesContainerName,
+                "InspectionFileExists",
+                ct => blobClient.ExistsAsync(ct),
+                cancellationToken))
         {
             return null;
         }
 
-        var download = await blobClient.DownloadStreamingAsync(cancellationToken: cancellationToken);
+        var download = await _storageObserver.ExecuteAsync(
+            "blob",
+            FilesContainerName,
+            "DownloadInspectionFile",
+            ct => blobClient.DownloadStreamingAsync(cancellationToken: ct),
+            cancellationToken);
         return new InspectionFileStreamResult(
             download.Value.Content,
             download.Value.Details.ContentType ?? "application/octet-stream",
@@ -144,7 +173,12 @@ public sealed class AzureInspectionRepository : IInspectionRepository
 
         var sessionId = request.SessionId ?? string.Empty;
         var filesContainerClient = _blobServiceClient.GetBlobContainerClient(FilesContainerName);
-        await filesContainerClient.CreateIfNotExistsAsync(cancellationToken: cancellationToken);
+        await _storageObserver.ExecuteAsync(
+            "blob",
+            FilesContainerName,
+            "EnsureInspectionFilesContainer",
+            ct => filesContainerClient.CreateIfNotExistsAsync(cancellationToken: ct),
+            cancellationToken);
 
         for (var i = 0; i < request.Files.Length; i++)
         {
@@ -157,7 +191,12 @@ public sealed class AzureInspectionRepository : IInspectionRepository
             var fileName = InspectionFileName.Sanitize(file.FileName, i);
             var blobClient = filesContainerClient.GetBlobClient($"{sessionId}-{fileName}");
             await using var fileStream = file.OpenReadStream();
-            await blobClient.UploadAsync(fileStream, overwrite: true, cancellationToken);
+            await _storageObserver.ExecuteAsync(
+                "blob",
+                FilesContainerName,
+                "UploadInspectionFile",
+                ct => blobClient.UploadAsync(fileStream, overwrite: true, ct),
+                cancellationToken);
         }
     }
 
@@ -187,16 +226,24 @@ public sealed class AzureInspectionRepository : IInspectionRepository
             .ToArray();
 
         var tableClient = _tableServiceClient.GetTableClient(_tableOptions.InspectionFilesTableName);
-        await tableClient.CreateIfNotExistsAsync(cancellationToken: cancellationToken);
-        await tableClient.UpsertEntityAsync(
-            new InspectionFilesEntity
+        await _storageObserver.ExecuteAsync(
+            "table",
+            _tableOptions.InspectionFilesTableName,
+            "UpsertInspectionFileMetadata",
+            async ct =>
             {
-                PartitionKey = InspectionFilesEntity.PartitionKeyValue,
-                RowKey = sessionId,
-                SessionId = sessionId,
-                Files = JsonSerializer.Serialize(files)
+                await tableClient.CreateIfNotExistsAsync(cancellationToken: ct);
+                await tableClient.UpsertEntityAsync(
+                    new InspectionFilesEntity
+                    {
+                        PartitionKey = InspectionFilesEntity.PartitionKeyValue,
+                        RowKey = sessionId,
+                        SessionId = sessionId,
+                        Files = JsonSerializer.Serialize(files)
+                    },
+                    TableUpdateMode.Replace,
+                    ct);
             },
-            TableUpdateMode.Replace,
             cancellationToken);
     }
 
@@ -208,17 +255,30 @@ public sealed class AzureInspectionRepository : IInspectionRepository
         }
 
         var queueClient = _queueServiceClient.GetQueueClient(_queueOptions.QueueName);
-        await queueClient.CreateIfNotExistsAsync(cancellationToken: cancellationToken);
-        await queueClient.SendMessageAsync(
-            JsonSerializer.Serialize(new { sessionId = request.SessionId ?? string.Empty }),
+        await _storageObserver.ExecuteAsync(
+            "queue",
+            _queueOptions.QueueName,
+            "SendInspectionQueueMessage",
+            async ct =>
+            {
+                await queueClient.CreateIfNotExistsAsync(cancellationToken: ct);
+                await queueClient.SendMessageAsync(
+                    JsonSerializer.Serialize(new { sessionId = request.SessionId ?? string.Empty }),
+                    ct);
+            },
             cancellationToken);
     }
 
-    private static async Task<InspectionPayload?> LoadInspectionPayloadAsync(
+    private async Task<InspectionPayload?> LoadInspectionPayloadAsync(
         BlobClient blobClient,
         CancellationToken cancellationToken)
     {
-        var download = await blobClient.DownloadContentAsync(cancellationToken);
+        var download = await _storageObserver.ExecuteAsync(
+            "blob",
+            _blobOptions.ContainerName,
+            "DownloadInspectionPayload",
+            ct => blobClient.DownloadContentAsync(ct),
+            cancellationToken);
         if (download.Value.Content.ToMemory().Length == 0)
         {
             return null;
@@ -242,10 +302,15 @@ public sealed class AzureInspectionRepository : IInspectionRepository
 
         try
         {
-            var response = await tableClient.GetEntityAsync<InspectionFilesEntity>(
-                InspectionFilesEntity.PartitionKeyValue,
-                sessionId,
-                cancellationToken: cancellationToken);
+            var response = await _storageObserver.ExecuteAsync(
+                "table",
+                _tableOptions.InspectionFilesTableName,
+                "GetInspectionFileMetadata",
+                ct => tableClient.GetEntityAsync<InspectionFilesEntity>(
+                    InspectionFilesEntity.PartitionKeyValue,
+                    sessionId,
+                    cancellationToken: ct),
+                cancellationToken);
 
             return string.IsNullOrWhiteSpace(response.Value.Files)
                 ? Array.Empty<InspectionFileReference>()

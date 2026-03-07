@@ -2,6 +2,7 @@ using Azure;
 using Azure.Data.Tables;
 using React_Receiver.Domain.Tenants;
 using React_Receiver.Models;
+using React_Receiver.Observability;
 using React_Receiver.Services;
 
 namespace React_Receiver.Infrastructure.TenantConfig;
@@ -10,13 +11,16 @@ public sealed class AzureTableTenantConfigRepository : ITenantConfigRepository
 {
     private readonly TableServiceClient _tableServiceClient;
     private readonly TableStorageOptions _tableOptions;
+    private readonly IStorageOperationObserver _storageObserver;
 
     public AzureTableTenantConfigRepository(
         TableServiceClient tableServiceClient,
-        Microsoft.Extensions.Options.IOptions<TableStorageOptions> tableOptions)
+        Microsoft.Extensions.Options.IOptions<TableStorageOptions> tableOptions,
+        IStorageOperationObserver storageObserver)
     {
         _tableServiceClient = tableServiceClient;
         _tableOptions = tableOptions.Value;
+        _storageObserver = storageObserver;
     }
 
     public bool IsConfigured =>
@@ -26,14 +30,24 @@ public sealed class AzureTableTenantConfigRepository : ITenantConfigRepository
     public async Task<TenantConfiguration?> GetAsync(string tenantId, CancellationToken cancellationToken)
     {
         var tableClient = _tableServiceClient.GetTableClient(_tableOptions.TenantConfigTableName);
-        await tableClient.CreateIfNotExistsAsync(cancellationToken: cancellationToken);
+        await _storageObserver.ExecuteAsync(
+            "table",
+            _tableOptions.TenantConfigTableName,
+            "EnsureTenantConfigTable",
+            ct => tableClient.CreateIfNotExistsAsync(cancellationToken: ct),
+            cancellationToken);
 
         try
         {
-            var response = await tableClient.GetEntityAsync<TenantConfigEntity>(
-                TenantConfigEntity.PartitionKeyValue,
-                tenantId,
-                cancellationToken: cancellationToken);
+            var response = await _storageObserver.ExecuteAsync(
+                "table",
+                _tableOptions.TenantConfigTableName,
+                "GetTenantConfig",
+                ct => tableClient.GetEntityAsync<TenantConfigEntity>(
+                    TenantConfigEntity.PartitionKeyValue,
+                    tenantId,
+                    cancellationToken: ct),
+                cancellationToken);
             return Map(response.Value.ToResponse());
         }
         catch (RequestFailedException ex) when (ex.Status == 404)
@@ -47,10 +61,15 @@ public sealed class AzureTableTenantConfigRepository : ITenantConfigRepository
         var tableClient = _tableServiceClient.GetTableClient(_tableOptions.TenantConfigTableName);
         try
         {
-            await tableClient.GetEntityAsync<TenantConfigEntity>(
-                TenantConfigEntity.PartitionKeyValue,
-                tenantId,
-                cancellationToken: cancellationToken);
+            await _storageObserver.ExecuteAsync(
+                "table",
+                _tableOptions.TenantConfigTableName,
+                "TenantConfigExists",
+                ct => tableClient.GetEntityAsync<TenantConfigEntity>(
+                    TenantConfigEntity.PartitionKeyValue,
+                    tenantId,
+                    cancellationToken: ct),
+                cancellationToken);
             return true;
         }
         catch (RequestFailedException ex) when (ex.Status == 404)
@@ -64,10 +83,18 @@ public sealed class AzureTableTenantConfigRepository : ITenantConfigRepository
         CancellationToken cancellationToken)
     {
         var tableClient = _tableServiceClient.GetTableClient(_tableOptions.TenantConfigTableName);
-        await tableClient.CreateIfNotExistsAsync(cancellationToken: cancellationToken);
-        await tableClient.UpsertEntityAsync(
-            TenantConfigEntity.FromResponse(Map(tenantConfiguration)),
-            TableUpdateMode.Replace,
+        await _storageObserver.ExecuteAsync(
+            "table",
+            _tableOptions.TenantConfigTableName,
+            "UpsertTenantConfig",
+            async ct =>
+            {
+                await tableClient.CreateIfNotExistsAsync(cancellationToken: ct);
+                await tableClient.UpsertEntityAsync(
+                    TenantConfigEntity.FromResponse(Map(tenantConfiguration)),
+                    TableUpdateMode.Replace,
+                    ct);
+            },
             cancellationToken);
         return tenantConfiguration;
     }

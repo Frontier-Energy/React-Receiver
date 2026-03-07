@@ -14,6 +14,8 @@ using React_Receiver.Infrastructure.Users;
 using React_Receiver.Mediation.Behaviors;
 using React_Receiver.Mediation.Exceptions;
 using React_Receiver.Mediation.Transactions;
+using React_Receiver.Middleware;
+using React_Receiver.Observability;
 using React_Receiver.Services;
 using React_Receiver.Validation;
 
@@ -93,9 +95,12 @@ builder.Services.AddSingleton<IFormSchemaApplicationService, FormSchemaApplicati
 builder.Services.AddSingleton<ITranslationApplicationService, TranslationApplicationService>();
 builder.Services.AddSingleton<ITenantConfigApplicationService, TenantConfigApplicationService>();
 builder.Services.AddSingleton<IRequestTransaction, NoOpRequestTransaction>();
+builder.Services.AddSingleton<IAuditEventLogger, AuditEventLogger>();
+builder.Services.AddSingleton<IStorageOperationObserver, StorageOperationObserver>();
 builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssemblyContaining<Program>());
 builder.Services.AddTransient(typeof(IPipelineBehavior<,>), typeof(UnhandledExceptionBehavior<,>));
 builder.Services.AddTransient(typeof(IPipelineBehavior<,>), typeof(LoggingBehavior<,>));
+builder.Services.AddTransient(typeof(IPipelineBehavior<,>), typeof(AuditBehavior<,>));
 builder.Services.AddTransient(typeof(IPipelineBehavior<,>), typeof(TransactionBehavior<,>));
 builder.Services.AddRequestValidation();
 builder.Services.AddHostedService<StartupHealthCheckHostedService>();
@@ -114,6 +119,7 @@ if (app.Environment.IsDevelopment())
     });
 }
 
+app.UseMiddleware<RequestObservabilityMiddleware>();
 app.UseExceptionHandler();
 app.UseHttpsRedirection();
 

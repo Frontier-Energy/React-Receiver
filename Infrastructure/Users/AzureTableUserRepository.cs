@@ -2,6 +2,7 @@ using Azure;
 using Azure.Data.Tables;
 using React_Receiver.Domain.Users;
 using React_Receiver.Models;
+using React_Receiver.Observability;
 using React_Receiver.Services;
 
 namespace React_Receiver.Infrastructure.Users;
@@ -10,13 +11,16 @@ public sealed class AzureTableUserRepository : IUserRepository
 {
     private readonly TableServiceClient _tableServiceClient;
     private readonly TableStorageOptions _tableOptions;
+    private readonly IStorageOperationObserver _storageObserver;
 
     public AzureTableUserRepository(
         TableServiceClient tableServiceClient,
-        Microsoft.Extensions.Options.IOptions<TableStorageOptions> tableOptions)
+        Microsoft.Extensions.Options.IOptions<TableStorageOptions> tableOptions,
+        IStorageOperationObserver storageObserver)
     {
         _tableServiceClient = tableServiceClient;
         _tableOptions = tableOptions.Value;
+        _storageObserver = storageObserver;
     }
 
     public async Task<UserProfile?> GetByIdAsync(string userId, CancellationToken cancellationToken)
@@ -30,10 +34,15 @@ public sealed class AzureTableUserRepository : IUserRepository
 
         try
         {
-            var response = await tableClient.GetEntityAsync<UserEntity>(
-                UserEntity.PartitionKeyValue,
-                userId,
-                cancellationToken: cancellationToken);
+            var response = await _storageObserver.ExecuteAsync(
+                "table",
+                _tableOptions.TableName,
+                "GetUserById",
+                ct => tableClient.GetEntityAsync<UserEntity>(
+                    UserEntity.PartitionKeyValue,
+                    userId,
+                    cancellationToken: ct),
+                cancellationToken);
             var entity = response.Value;
             return new UserProfile(entity.UserId, entity.Email, entity.FirstName, entity.LastName);
         }
@@ -55,14 +64,22 @@ public sealed class AzureTableUserRepository : IUserRepository
             entity.PartitionKey == UserEntity.PartitionKeyValue &&
             entity.Email == email);
 
-        await foreach (var entity in tableClient.QueryAsync<UserEntity>(
-                           filter: filter,
-                           cancellationToken: cancellationToken))
-        {
-            return new UserProfile(entity.UserId, entity.Email, entity.FirstName, entity.LastName);
-        }
+        return await _storageObserver.ExecuteAsync(
+            "table",
+            _tableOptions.TableName,
+            "FindUserByEmail",
+            async ct =>
+            {
+                await foreach (var entity in tableClient.QueryAsync<UserEntity>(
+                                   filter: filter,
+                                   cancellationToken: ct))
+                {
+                    return new UserProfile(entity.UserId, entity.Email, entity.FirstName, entity.LastName);
+                }
 
-        return null;
+                return null;
+            },
+            cancellationToken);
     }
 
     public async Task AddAsync(UserProfile user, CancellationToken cancellationToken)
@@ -73,16 +90,24 @@ public sealed class AzureTableUserRepository : IUserRepository
         }
 
         var tableClient = _tableServiceClient.GetTableClient(_tableOptions.TableName);
-        await tableClient.CreateIfNotExistsAsync(cancellationToken: cancellationToken);
-        await tableClient.AddEntityAsync(
-            new UserEntity
+        await _storageObserver.ExecuteAsync(
+            "table",
+            _tableOptions.TableName,
+            "AddUser",
+            async ct =>
             {
-                PartitionKey = UserEntity.PartitionKeyValue,
-                RowKey = user.UserId,
-                UserId = user.UserId,
-                Email = user.Email,
-                FirstName = user.FirstName,
-                LastName = user.LastName
+                await tableClient.CreateIfNotExistsAsync(cancellationToken: ct);
+                await tableClient.AddEntityAsync(
+                    new UserEntity
+                    {
+                        PartitionKey = UserEntity.PartitionKeyValue,
+                        RowKey = user.UserId,
+                        UserId = user.UserId,
+                        Email = user.Email,
+                        FirstName = user.FirstName,
+                        LastName = user.LastName
+                    },
+                    ct);
             },
             cancellationToken);
     }
@@ -100,10 +125,15 @@ public sealed class AzureTableUserRepository : IUserRepository
 
         try
         {
-            var response = await tableClient.GetEntityAsync<MeEntity>(
-                MeEntity.PartitionKeyValue,
-                MeEntity.CurrentUserRowKey,
-                cancellationToken: cancellationToken);
+            var response = await _storageObserver.ExecuteAsync(
+                "table",
+                _tableOptions.MeTableName,
+                "GetCurrentUser",
+                ct => tableClient.GetEntityAsync<MeEntity>(
+                    MeEntity.PartitionKeyValue,
+                    MeEntity.CurrentUserRowKey,
+                    cancellationToken: ct),
+                cancellationToken);
             var me = response.Value.ToResponse();
             return new CurrentUser(me.UserId, me.Roles, me.Permissions);
         }
@@ -122,10 +152,18 @@ public sealed class AzureTableUserRepository : IUserRepository
         }
 
         var tableClient = _tableServiceClient.GetTableClient(_tableOptions.MeTableName);
-        await tableClient.CreateIfNotExistsAsync(cancellationToken: cancellationToken);
-        await tableClient.UpsertEntityAsync(
-            MeEntity.FromResponse(new MeResponse(user.UserId, user.Roles, user.Permissions)),
-            TableUpdateMode.Replace,
+        await _storageObserver.ExecuteAsync(
+            "table",
+            _tableOptions.MeTableName,
+            "SaveCurrentUser",
+            async ct =>
+            {
+                await tableClient.CreateIfNotExistsAsync(cancellationToken: ct);
+                await tableClient.UpsertEntityAsync(
+                    MeEntity.FromResponse(new MeResponse(user.UserId, user.Roles, user.Permissions)),
+                    TableUpdateMode.Replace,
+                    ct);
+            },
             cancellationToken);
     }
 }
