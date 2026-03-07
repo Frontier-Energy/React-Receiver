@@ -28,6 +28,16 @@ public sealed class TranslationsController : ControllerBase
         [FromBody] TranslationsResponse request)
     {
         var response = await _translationService.UpsertAsync(routeRequest.Language!, request, HttpContext.RequestAborted);
-        return response is null ? NotFound() : Ok(response);
+        if (response.Created)
+        {
+            return CreatedAtAction(
+                nameof(GetTranslations),
+                new { language = routeRequest.Language },
+                response.Resource);
+        }
+
+        Response.Headers.ContentLocation = $"/translations/{Uri.EscapeDataString(routeRequest.Language!)}";
+
+        return Ok(response.Resource);
     }
 }

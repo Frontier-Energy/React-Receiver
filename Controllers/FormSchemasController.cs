@@ -51,6 +51,26 @@ public sealed class FormSchemasController : ControllerBase
         [FromBody] FormSchemaResponse request)
     {
         var response = await _formSchemaService.UpsertAsync(routeRequest.FormType!, request, HttpContext.RequestAborted);
-        return response is null ? NotFound() : Ok(response);
+        if (!string.IsNullOrWhiteSpace(response.ETag))
+        {
+            Response.Headers.ETag = response.ETag;
+        }
+
+        if (!string.IsNullOrWhiteSpace(response.Version))
+        {
+            Response.Headers["X-Form-Schema-Version"] = response.Version;
+        }
+
+        if (response.Created)
+        {
+            return CreatedAtAction(
+                nameof(GetFormSchema),
+                new { formType = routeRequest.FormType },
+                response.Resource);
+        }
+
+        Response.Headers.ContentLocation = $"/form-schemas/{Uri.EscapeDataString(routeRequest.FormType!)}";
+
+        return Ok(response.Resource);
     }
 }

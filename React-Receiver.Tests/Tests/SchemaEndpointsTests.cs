@@ -112,10 +112,13 @@ public sealed class SchemaEndpointsTests
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         var response = Assert.IsType<FormSchemaResponse>(ok.Value);
         Assert.Equal("HVAC Inspection Updated", response.FormName);
+        Assert.Equal("/form-schemas/hvac", controller.Response.Headers.ContentLocation.ToString());
+        Assert.False(string.IsNullOrWhiteSpace(controller.Response.Headers.ETag.ToString()));
+        Assert.False(string.IsNullOrWhiteSpace(controller.Response.Headers["X-Form-Schema-Version"].ToString()));
     }
 
     [Fact]
-    public async Task UpsertFormSchema_ReturnsNotFoundForUnknownFormType()
+    public async Task UpsertFormSchema_ReturnsCreatedForUnknownFormType()
     {
         var controller = CreateFormSchemasController(new TableStorageOptions
         {
@@ -128,9 +131,13 @@ public sealed class SchemaEndpointsTests
 
         var result = await controller.UpsertFormSchema(new FormSchemaRouteRequest { FormType = "custom-form" }, schema);
 
-        var ok = Assert.IsType<OkObjectResult>(result.Result);
-        var response = Assert.IsType<FormSchemaResponse>(ok.Value);
+        var created = Assert.IsType<CreatedAtActionResult>(result.Result);
+        Assert.Equal(nameof(FormSchemasController.GetFormSchema), created.ActionName);
+        Assert.Equal("custom-form", created.RouteValues?["formType"]);
+        var response = Assert.IsType<FormSchemaResponse>(created.Value);
         Assert.Equal("Custom", response.FormName);
+        Assert.False(string.IsNullOrWhiteSpace(controller.Response.Headers.ETag.ToString()));
+        Assert.False(string.IsNullOrWhiteSpace(controller.Response.Headers["X-Form-Schema-Version"].ToString()));
     }
 
     [Fact]
@@ -182,10 +189,11 @@ public sealed class SchemaEndpointsTests
         var response = Assert.IsType<TranslationsResponse>(ok.Value);
         var app = Assert.IsType<AppTranslations>(response.App);
         Assert.Equal("Updated Title", app.Title);
+        Assert.Equal("/translations/en", controller.Response.Headers.ContentLocation.ToString());
     }
 
     [Fact]
-    public async Task UpsertTranslations_ReturnsNotFoundForUnknownLanguage()
+    public async Task UpsertTranslations_ReturnsCreatedForUnknownLanguage()
     {
         var controller = CreateTranslationsController(new TableStorageOptions
         {
@@ -205,8 +213,10 @@ public sealed class SchemaEndpointsTests
 
         var result = await controller.UpsertTranslations(new TranslationLanguageRequest { Language = "fr" }, payload);
 
-        var ok = Assert.IsType<OkObjectResult>(result.Result);
-        var response = Assert.IsType<TranslationsResponse>(ok.Value);
+        var created = Assert.IsType<CreatedAtActionResult>(result.Result);
+        Assert.Equal(nameof(TranslationsController.GetTranslations), created.ActionName);
+        Assert.Equal("fr", created.RouteValues?["language"]);
+        var response = Assert.IsType<TranslationsResponse>(created.Value);
         Assert.Equal("French", response.LanguageName);
     }
 
@@ -298,7 +308,7 @@ public sealed class SchemaEndpointsTests
             throw _exception;
         }
 
-        public Task<FormSchemaResponse?> UpsertAsync(string formType, FormSchemaResponse request, CancellationToken cancellationToken)
+        public Task<UpsertResult<FormSchemaResponse>> UpsertAsync(string formType, FormSchemaResponse request, CancellationToken cancellationToken)
         {
             throw new NotSupportedException();
         }

@@ -8,7 +8,7 @@ namespace React_Receiver.Services;
 public interface ITranslationService
 {
     Task<TranslationsResponse?> GetAsync(string language, CancellationToken cancellationToken);
-    Task<TranslationsResponse?> UpsertAsync(string language, TranslationsResponse request, CancellationToken cancellationToken);
+    Task<UpsertResult<TranslationsResponse>> UpsertAsync(string language, TranslationsResponse request, CancellationToken cancellationToken);
     Task ImportSeedDataAsync(bool overwriteExisting, CancellationToken cancellationToken);
 }
 
@@ -60,26 +60,29 @@ public sealed class TranslationService : ITranslationService
         }
     }
 
-    public async Task<TranslationsResponse?> UpsertAsync(
+    public async Task<UpsertResult<TranslationsResponse>> UpsertAsync(
         string language,
         TranslationsResponse request,
         CancellationToken cancellationToken)
     {
+        var created = !_translations.ContainsKey(language);
+
         if (!HasTableStorageConfiguration())
         {
             _translations[language] = request;
-            return request;
+            return new UpsertResult<TranslationsResponse>(request, created);
         }
 
         var tableClient = _tableServiceClient.GetTableClient(_tableOptions.TranslationsTableName);
         await tableClient.CreateIfNotExistsAsync(cancellationToken: cancellationToken);
+        created = !await TranslationExistsAsync(tableClient, language, cancellationToken);
         await tableClient.UpsertEntityAsync(
             TranslationEntity.FromResponse(language, request),
             TableUpdateMode.Replace,
             cancellationToken);
 
         _translations[language] = request;
-        return request;
+        return new UpsertResult<TranslationsResponse>(request, created);
     }
 
     public async Task ImportSeedDataAsync(bool overwriteExisting, CancellationToken cancellationToken)

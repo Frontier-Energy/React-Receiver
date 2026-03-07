@@ -24,7 +24,7 @@ public interface IFormSchemaService
 {
     Task<FormSchemaCatalogResponse> ListAsync(CancellationToken cancellationToken);
     Task<FormSchemaResponse?> GetAsync(string formType, CancellationToken cancellationToken);
-    Task<FormSchemaResponse?> UpsertAsync(string formType, FormSchemaResponse request, CancellationToken cancellationToken);
+    Task<UpsertResult<FormSchemaResponse>> UpsertAsync(string formType, FormSchemaResponse request, CancellationToken cancellationToken);
     Task ImportSeedDataAsync(bool overwriteExisting, CancellationToken cancellationToken);
 }
 
@@ -120,12 +120,13 @@ public sealed class FormSchemaService : IFormSchemaService
         }
     }
 
-    public async Task<FormSchemaResponse?> UpsertAsync(
+    public async Task<UpsertResult<FormSchemaResponse>> UpsertAsync(
         string formType,
         FormSchemaResponse request,
         CancellationToken cancellationToken)
     {
         var now = DateTime.UtcNow;
+        var created = !_formSchemaCatalog.ContainsKey(formType);
         var catalogItem = new FormSchemaCatalogItemResponse(
             formType,
             now.ToString("yyyy-MM-dd"),
@@ -137,11 +138,16 @@ public sealed class FormSchemaService : IFormSchemaService
                 catalogItem.Version,
                 catalogItem.Etag,
                 request);
-            return request;
+            return new UpsertResult<FormSchemaResponse>(
+                request,
+                created,
+                catalogItem.Version,
+                catalogItem.Etag);
         }
 
         var schemasTableClient = _tableServiceClient.GetTableClient(_tableOptions.FormSchemasTableName);
         await schemasTableClient.CreateIfNotExistsAsync(cancellationToken: cancellationToken);
+        created = !await SchemaExistsAsync(schemasTableClient, formType, cancellationToken);
         await UpsertSchemaEntityAsync(schemasTableClient, formType, request, cancellationToken);
 
         var catalogTableClient = _tableServiceClient.GetTableClient(_tableOptions.FormSchemaCatalogTableName);
@@ -156,7 +162,11 @@ public sealed class FormSchemaService : IFormSchemaService
             catalogItem.Etag,
             request);
 
-        return request;
+        return new UpsertResult<FormSchemaResponse>(
+            request,
+            created,
+            catalogItem.Version,
+            catalogItem.Etag);
     }
 
     public async Task ImportSeedDataAsync(bool overwriteExisting, CancellationToken cancellationToken)
