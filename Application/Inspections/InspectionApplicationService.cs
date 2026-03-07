@@ -1,3 +1,4 @@
+using MediatR;
 using React_Receiver.Infrastructure.Inspections;
 using React_Receiver.Models;
 
@@ -6,17 +7,38 @@ namespace React_Receiver.Application.Inspections;
 public sealed class InspectionApplicationService : IInspectionApplicationService
 {
     private readonly IInspectionRepository _inspectionRepository;
+    private readonly ISender _sender;
+    private readonly ILogger<InspectionApplicationService> _logger;
 
-    public InspectionApplicationService(IInspectionRepository inspectionRepository)
+    public InspectionApplicationService(
+        IInspectionRepository inspectionRepository,
+        ISender sender,
+        ILogger<InspectionApplicationService> logger)
     {
         _inspectionRepository = inspectionRepository;
+        _sender = sender;
+        _logger = logger;
     }
 
-    public Task<ReceiveInspectionResponse> ReceiveInspectionAsync(
+    public async Task<ReceiveInspectionResponse> ReceiveInspectionAsync(
         ReceiveInspectionRequest request,
         CancellationToken cancellationToken)
     {
-        return _inspectionRepository.SaveAsync(request, cancellationToken);
+        var response = await _inspectionRepository.PrepareAsync(request, cancellationToken);
+
+        try
+        {
+            await _sender.Send(new ProcessInspectionIngestCommand(response.SessionId), cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "Inspection ingest finalization will be retried asynchronously for session {SessionId}",
+                response.SessionId);
+        }
+
+        return response;
     }
 
     public Task<GetInspectionResponse?> GetInspectionAsync(string sessionId, CancellationToken cancellationToken)

@@ -39,6 +39,7 @@ public sealed class StorageStartupValidationTests
                 ConnectionString = string.Empty,
                 TableName = string.Empty,
                 InspectionFilesTableName = string.Empty,
+                InspectionIngestOutboxTableName = string.Empty,
                 TenantConfigTableName = string.Empty,
                 MeTableName = string.Empty,
                 FormSchemaCatalogTableName = string.Empty,
@@ -49,6 +50,7 @@ public sealed class StorageStartupValidationTests
         Assert.False(result.Succeeded);
         var failures = Assert.IsAssignableFrom<IReadOnlyCollection<string>>(result.Failures);
         Assert.Contains("TableStorage:ConnectionString is required.", failures);
+        Assert.Contains("TableStorage:InspectionIngestOutboxTableName is required.", failures);
         Assert.Contains("TableStorage:FormSchemasTableName is required.", failures);
         Assert.Contains("TableStorage:TranslationsTableName is required.", failures);
     }

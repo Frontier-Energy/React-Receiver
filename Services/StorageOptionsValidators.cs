@@ -59,6 +59,7 @@ public sealed class TableStorageOptionsValidator : IValidateOptions<TableStorage
 
         AddRequiredFailure(failures, options.TableName, "TableStorage:TableName");
         AddRequiredFailure(failures, options.InspectionFilesTableName, "TableStorage:InspectionFilesTableName");
+        AddRequiredFailure(failures, options.InspectionIngestOutboxTableName, "TableStorage:InspectionIngestOutboxTableName");
         AddRequiredFailure(failures, options.TenantConfigTableName, "TableStorage:TenantConfigTableName");
         AddRequiredFailure(failures, options.MeTableName, "TableStorage:MeTableName");
         AddRequiredFailure(failures, options.FormSchemaCatalogTableName, "TableStorage:FormSchemaCatalogTableName");

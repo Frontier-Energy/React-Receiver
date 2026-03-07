@@ -106,6 +106,7 @@ builder.Services.AddRequestValidation();
 builder.Services.AddHostedService<StartupHealthCheckHostedService>();
 builder.Services.AddHostedService<StorageInfrastructureHostedService>();
 builder.Services.AddHostedService<BootstrapDataHostedService>();
+builder.Services.AddHostedService<InspectionIngestRetryHostedService>();
 
 var app = builder.Build();
 

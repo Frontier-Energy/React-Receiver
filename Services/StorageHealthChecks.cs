@@ -178,6 +178,7 @@ public sealed class TableStorageHealthCheck : IHealthCheck
         {
             ["TableStorage:TableName"] = options.TableName?.Trim(),
             ["TableStorage:InspectionFilesTableName"] = options.InspectionFilesTableName?.Trim(),
+            ["TableStorage:InspectionIngestOutboxTableName"] = options.InspectionIngestOutboxTableName?.Trim(),
             ["TableStorage:TenantConfigTableName"] = options.TenantConfigTableName?.Trim(),
             ["TableStorage:MeTableName"] = options.MeTableName?.Trim(),
             ["TableStorage:FormSchemaCatalogTableName"] = options.FormSchemaCatalogTableName?.Trim(),

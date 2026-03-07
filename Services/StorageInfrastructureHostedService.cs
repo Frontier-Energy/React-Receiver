@@ -44,6 +44,7 @@ public sealed class StorageInfrastructureHostedService : IHostedService
         await EnsureTableAsync(_tableOptions.TableName, "EnsureUsersTable", cancellationToken);
         await EnsureTableAsync(_tableOptions.MeTableName, "EnsureCurrentUserTable", cancellationToken);
         await EnsureTableAsync(_tableOptions.InspectionFilesTableName, "EnsureInspectionFilesTable", cancellationToken);
+        await EnsureTableAsync(_tableOptions.InspectionIngestOutboxTableName, "EnsureInspectionIngestOutboxTable", cancellationToken);
         await EnsureTableAsync(_tableOptions.TenantConfigTableName, "EnsureTenantConfigTable", cancellationToken);
         await EnsureTableAsync(_tableOptions.FormSchemaCatalogTableName, "EnsureFormSchemaCatalogTable", cancellationToken);
         await EnsureTableAsync(_tableOptions.FormSchemasTableName, "EnsureFormSchemasTable", cancellationToken);
