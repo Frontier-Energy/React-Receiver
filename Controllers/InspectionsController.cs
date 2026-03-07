@@ -42,7 +42,6 @@ public sealed class InspectionsController : ControllerBase
     }
 
     [HttpGet("{sessionId}/files/{fileName}")]
-    [HttpGet("/QHVAC/GetFile")]
     public async Task<IActionResult> GetFile(GetInspectionFileRequest request)
     {
         var response = await _sender.Send(

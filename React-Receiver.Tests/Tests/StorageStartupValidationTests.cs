@@ -124,6 +124,20 @@ public sealed class StorageStartupValidationTests
         Assert.Contains("catch (RequestFailedException ex) when (ex.Status == 404)", source, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Program_RegistersStorageInfrastructureHostedService_BeforeStartupHealthChecks()
+    {
+        var repositoryRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
+        var source = File.ReadAllText(Path.Combine(repositoryRoot, "Program.cs"));
+
+        var storageIndex = source.IndexOf("AddHostedService<StorageInfrastructureHostedService>()", StringComparison.Ordinal);
+        var startupIndex = source.IndexOf("AddHostedService<StartupHealthCheckHostedService>()", StringComparison.Ordinal);
+
+        Assert.True(storageIndex >= 0, "Storage infrastructure hosted service registration was not found.");
+        Assert.True(startupIndex >= 0, "Startup health check hosted service registration was not found.");
+        Assert.True(storageIndex < startupIndex, "Storage infrastructure must start before startup health checks.");
+    }
+
     private sealed class StubHealthCheckService : HealthCheckService
     {
         private readonly HealthReport _report;

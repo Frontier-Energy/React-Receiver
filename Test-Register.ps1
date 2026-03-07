@@ -11,7 +11,7 @@ $payload = @{
     email = $Email
 } | ConvertTo-Json
 
-$uri = "$BaseUrl/QHVAC/Register"
+$uri = "$BaseUrl/auth/register"
 
 try {
     $response = Invoke-RestMethod -Method Post -Uri $uri -ContentType "application/json" -Body $payload

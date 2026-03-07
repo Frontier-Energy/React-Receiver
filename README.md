@@ -39,7 +39,7 @@ http://localhost:5108/swagger
 
 ## Tenant Config (GET)
 ```http
-GET /QHVAC/tenant-config
+GET /tenant-config
 ```
 
 Example response:
@@ -83,15 +83,15 @@ $payload = @{
 
 Invoke a remote call for testing (PowerShell 7+):
 ```powershell
-Invoke-RestMethod "https://react-receiver.icysmoke-6c3b2e19.centralus.azurecontainerapps.io/QHVAC/ReceiveInspection/" `
+Invoke-RestMethod "https://react-receiver.icysmoke-6c3b2e19.centralus.azurecontainerapps.io/inspections" `
   -Method Post `
   -Form @{ Payload = $payload }
 ```
 
 Set the URL to local, or dev
 ```
-$uri = "http://localhost:5108/QHVAC/ReceiveInspection"
-$uri = "https://react-receiver.icysmoke-6c3b2e19.centralus.azurecontainerapps.io/QHVAC/ReceiveInspection/"
+$uri = "http://localhost:5108/inspections"
+$uri = "https://react-receiver.icysmoke-6c3b2e19.centralus.azurecontainerapps.io/inspections"
 ```
 
 Add the http dll to powershell
