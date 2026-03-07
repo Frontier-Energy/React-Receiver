@@ -17,7 +17,6 @@ public sealed class InspectionsController : ControllerBase
     }
 
     [HttpPost]
-    [HttpPost("/QHVAC/ReceiveInspection")]
     [Consumes("multipart/form-data")]
     public async Task<ActionResult<ReceiveInspectionResponse>> ReceiveInspection(
         [FromForm] ReceiveInspectionFormRequest request)
@@ -27,7 +26,6 @@ public sealed class InspectionsController : ControllerBase
     }
 
     [HttpGet("{sessionId}")]
-    [HttpGet("/QHVAC/GetInspection")]
     public async Task<ActionResult<GetInspectionResponse>> GetInspection(GetInspectionRequest request)
     {
         var response = await _sender.Send(new GetInspectionQuery(request.SessionId!), HttpContext.RequestAborted);

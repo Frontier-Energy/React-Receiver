@@ -34,20 +34,23 @@ public sealed class TenantConfigApplicationService : ITenantConfigApplicationSer
         return configuration is null ? null : Map(configuration);
     }
 
-    public async Task<TenantBootstrapResponse> UpsertAsync(
+    public async Task<UpsertResult<TenantBootstrapResponse>> UpsertAsync(
+        string tenantId,
         TenantBootstrapResponse tenantConfig,
         CancellationToken cancellationToken)
     {
-        var normalized = TenantConfiguration.Normalize(Map(tenantConfig));
+        var normalized = TenantConfiguration.Normalize(Map(tenantConfig with { TenantId = tenantId }));
 
         if (!_repository.IsConfigured)
         {
+            var created = !_tenantConfigs.ContainsKey(normalized.TenantId);
             _tenantConfigs[normalized.TenantId] = normalized;
-            return Map(normalized);
+            return new UpsertResult<TenantBootstrapResponse>(Map(normalized), created);
         }
 
+        var createdInRepository = !await _repository.ExistsAsync(normalized.TenantId, cancellationToken);
         var saved = await _repository.UpsertAsync(normalized, cancellationToken);
-        return Map(saved);
+        return new UpsertResult<TenantBootstrapResponse>(Map(saved), createdInRepository);
     }
 
     public async Task ImportSeedDataAsync(bool overwriteExisting, CancellationToken cancellationToken)

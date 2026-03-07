@@ -23,10 +23,24 @@ public sealed class TenantConfigController : ControllerBase
         return tenantConfig is null ? NotFound() : Ok(tenantConfig);
     }
 
-    [HttpPost]
-    public async Task<ActionResult<TenantBootstrapResponse>> UpsertTenantConfig([FromBody] TenantBootstrapResponse request)
+    [HttpPut("{tenantId}")]
+    public async Task<ActionResult<TenantBootstrapResponse>> UpsertTenantConfig(
+        [FromRoute] TenantConfigRouteRequest routeRequest,
+        [FromBody] TenantBootstrapResponse request)
     {
-        var tenantConfig = await _sender.Send(new UpsertTenantConfigCommand(request), HttpContext.RequestAborted);
-        return Ok(tenantConfig);
+        var response = await _sender.Send(
+            new UpsertTenantConfigCommand(request with { TenantId = routeRequest.TenantId }),
+            HttpContext.RequestAborted);
+        if (response.Created)
+        {
+            return CreatedAtAction(
+                nameof(GetTenantConfig),
+                new { tenantId = routeRequest.TenantId },
+                response.Resource);
+        }
+
+        Response.Headers.ContentLocation = $"/tenant-config/{Uri.EscapeDataString(routeRequest.TenantId!)}";
+
+        return Ok(response.Resource);
     }
 }

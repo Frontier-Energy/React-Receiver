@@ -29,6 +29,12 @@ public sealed class TranslationLanguageRequest
     public string? Language { get; init; }
 }
 
+public sealed class TenantConfigRouteRequest
+{
+    [Required(AllowEmptyStrings = false)]
+    public string? TenantId { get; init; }
+}
+
 public sealed class TenantConfigQueryRequest
 {
     public string? TenantId { get; init; }

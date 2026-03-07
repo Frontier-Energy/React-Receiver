@@ -17,7 +17,6 @@ public sealed class AuthController : ControllerBase
     }
 
     [HttpPost("login")]
-    [HttpPost("/QHVAC/Login")]
     public async Task<ActionResult<LoginRequestResponse>> Login([FromBody] LoginRequestCommand request)
     {
         var response = await _sender.Send(new LoginCommand(request), HttpContext.RequestAborted);
@@ -25,7 +24,6 @@ public sealed class AuthController : ControllerBase
     }
 
     [HttpPost("register")]
-    [HttpPost("/QHVAC/Register")]
     public async Task<ActionResult<RegisterResponseModel>> Register([FromBody] RegisterRequestModel request)
     {
         var response = await _sender.Send(new RegisterCommand(request), HttpContext.RequestAborted);

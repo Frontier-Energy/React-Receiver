@@ -41,13 +41,14 @@ public sealed class TenantConfigHandlerTests
             EnabledForms: ["hvac"],
             LoginRequired: false);
 
-        var result = await handler.UpsertAsync(payload, CancellationToken.None);
+        var result = await handler.UpsertAsync(" custom-tenant ", payload, CancellationToken.None);
 
-        Assert.Equal("custom-tenant", result.TenantId);
-        Assert.Equal("Custom Tenant", result.DisplayName);
-        Assert.Equal("custom-theme", result.UiDefaults.Theme);
-        Assert.Equal(["hvac"], result.EnabledForms);
-        Assert.False(result.LoginRequired);
+        Assert.True(result.Created);
+        Assert.Equal("custom-tenant", result.Resource.TenantId);
+        Assert.Equal("Custom Tenant", result.Resource.DisplayName);
+        Assert.Equal("custom-theme", result.Resource.UiDefaults.Theme);
+        Assert.Equal(["hvac"], result.Resource.EnabledForms);
+        Assert.False(result.Resource.LoginRequired);
     }
 
     [Fact]

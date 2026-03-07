@@ -42,6 +42,59 @@ public sealed class TenantConfigTests
         Assert.IsType<NotFoundResult>(result.Result);
     }
 
+    [Fact]
+    public async Task UpsertTenantConfig_ReturnsOkForKnownTenant()
+    {
+        var controller = CreateController();
+
+        var payload = new TenantBootstrapResponse(
+            TenantId: "ignored-by-route",
+            DisplayName: "QHVAC Updated",
+            UiDefaults: new UiDefaults(
+                Theme: "harbor",
+                Font: "Tahoma, \"Trebuchet MS\", Arial, sans-serif",
+                Language: "en",
+                ShowLeftFlyout: true,
+                ShowRightFlyout: true,
+                ShowInspectionStatsButton: false),
+            EnabledForms: ["electrical", "hvac"],
+            LoginRequired: true);
+
+        var result = await controller.UpsertTenantConfig(new TenantConfigRouteRequest { TenantId = "qhvac" }, payload);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var response = Assert.IsType<TenantBootstrapResponse>(ok.Value);
+        Assert.Equal("qhvac", response.TenantId);
+        Assert.Equal("/tenant-config/qhvac", controller.Response.Headers.ContentLocation.ToString());
+    }
+
+    [Fact]
+    public async Task UpsertTenantConfig_ReturnsCreatedForUnknownTenant()
+    {
+        var controller = CreateController();
+
+        var payload = new TenantBootstrapResponse(
+            TenantId: null,
+            DisplayName: "Custom Tenant",
+            UiDefaults: new UiDefaults(
+                Theme: "custom-theme",
+                Font: "Segoe UI",
+                Language: "en",
+                ShowLeftFlyout: false,
+                ShowRightFlyout: true,
+                ShowInspectionStatsButton: true),
+            EnabledForms: ["hvac"],
+            LoginRequired: false);
+
+        var result = await controller.UpsertTenantConfig(new TenantConfigRouteRequest { TenantId = "custom-tenant" }, payload);
+
+        var created = Assert.IsType<CreatedAtActionResult>(result.Result);
+        Assert.Equal(nameof(TenantConfigController.GetTenantConfig), created.ActionName);
+        Assert.Equal("custom-tenant", created.RouteValues?["tenantId"]);
+        var response = Assert.IsType<TenantBootstrapResponse>(created.Value);
+        Assert.Equal("custom-tenant", response.TenantId);
+    }
+
     private static TenantConfigController CreateController()
     {
         var controller = new TenantConfigController(new TestSender((request, _) =>
@@ -63,7 +116,14 @@ public sealed class TenantConfigTests
                         ShowInspectionStatsButton: false),
                     EnabledForms: ["electrical", "electrical-sf", "hvac"],
                     LoginRequired: true)),
-                UpsertTenantConfigCommand command => Task.FromResult<object?>(command.Request),
+                UpsertTenantConfigCommand command when string.Equals(command.Request.TenantId, "custom-tenant", StringComparison.OrdinalIgnoreCase)
+                    => Task.FromResult<object?>(new UpsertResult<TenantBootstrapResponse>(
+                        command.Request,
+                        true)),
+                UpsertTenantConfigCommand command
+                    => Task.FromResult<object?>(new UpsertResult<TenantBootstrapResponse>(
+                        command.Request,
+                        false)),
                 _ => throw new NotSupportedException()
             };
         }))
