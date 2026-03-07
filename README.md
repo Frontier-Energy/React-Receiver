@@ -2,7 +2,16 @@
 
 ## Prerequisites
 
-- .NET 9 SDK
+- .NET 10 SDK
+
+## Documentation
+
+Start with:
+
+- `Documentation/README.md`
+- `Documentation/Onboarding/getting-started.md`
+- `Documentation/Architecture/main.md`
+- `Documentation/Patterns/major-design-patterns.md`
 
 ## Commands
 
