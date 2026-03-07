@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
+using React_Receiver.Application.FormSchemas;
 using React_Receiver.Models;
-using React_Receiver.Services;
 
 namespace React_Receiver.Controllers;
 
@@ -9,11 +9,11 @@ namespace React_Receiver.Controllers;
 [Route("form-schemas")]
 public sealed class FormSchemasController : ControllerBase
 {
-    private readonly IFormSchemaService _formSchemaService;
+    private readonly IFormSchemaApplicationService _formSchemaService;
     private readonly ILogger<FormSchemasController> _logger;
 
     public FormSchemasController(
-        IFormSchemaService formSchemaService,
+        IFormSchemaApplicationService formSchemaService,
         ILogger<FormSchemasController> logger)
     {
         _formSchemaService = formSchemaService;

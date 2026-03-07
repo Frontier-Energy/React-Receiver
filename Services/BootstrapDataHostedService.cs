@@ -1,24 +1,26 @@
 using Microsoft.Extensions.Options;
-using React_Receiver.Handlers;
+using React_Receiver.Application.FormSchemas;
+using React_Receiver.Application.TenantConfig;
+using React_Receiver.Application.Translations;
 
 namespace React_Receiver.Services;
 
 public sealed class BootstrapDataHostedService : IHostedService
 {
-    private readonly IFormSchemaService _formSchemaService;
-    private readonly ITranslationService _translationService;
-    private readonly ITenantConfigHandler _tenantConfigHandler;
+    private readonly IFormSchemaApplicationService _formSchemaService;
+    private readonly ITranslationApplicationService _translationService;
+    private readonly ITenantConfigApplicationService _tenantConfigService;
     private readonly BootstrapDataOptions _options;
 
     public BootstrapDataHostedService(
-        IFormSchemaService formSchemaService,
-        ITranslationService translationService,
-        ITenantConfigHandler tenantConfigHandler,
+        IFormSchemaApplicationService formSchemaService,
+        ITranslationApplicationService translationService,
+        ITenantConfigApplicationService tenantConfigService,
         IOptions<BootstrapDataOptions> options)
     {
         _formSchemaService = formSchemaService;
         _translationService = translationService;
-        _tenantConfigHandler = tenantConfigHandler;
+        _tenantConfigService = tenantConfigService;
         _options = options.Value;
     }
 
@@ -31,7 +33,7 @@ public sealed class BootstrapDataHostedService : IHostedService
 
         await _formSchemaService.ImportSeedDataAsync(_options.OverwriteExisting, cancellationToken);
         await _translationService.ImportSeedDataAsync(_options.OverwriteExisting, cancellationToken);
-        await _tenantConfigHandler.ImportSeedDataAsync(_options.OverwriteExisting, cancellationToken);
+        await _tenantConfigService.ImportSeedDataAsync(_options.OverwriteExisting, cancellationToken);
     }
 
     public Task StopAsync(CancellationToken cancellationToken)

@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
+using React_Receiver.Application.Translations;
 using React_Receiver.Models;
-using React_Receiver.Services;
 
 namespace React_Receiver.Controllers;
 
@@ -8,9 +8,9 @@ namespace React_Receiver.Controllers;
 [Route("translations")]
 public sealed class TranslationsController : ControllerBase
 {
-    private readonly ITranslationService _translationService;
+    private readonly ITranslationApplicationService _translationService;
 
-    public TranslationsController(ITranslationService translationService)
+    public TranslationsController(ITranslationApplicationService translationService)
     {
         _translationService = translationService;
     }

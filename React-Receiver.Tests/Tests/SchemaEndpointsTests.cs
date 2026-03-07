@@ -1,11 +1,13 @@
 using System;
-using Azure.Data.Tables;
-using Azure.Storage.Blobs;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
+using React_Receiver.Application.FormSchemas;
+using React_Receiver.Application.Translations;
+using React_Receiver.Application.Users;
 using React_Receiver.Controllers;
+using React_Receiver.Infrastructure.FormSchemas;
+using React_Receiver.Infrastructure.Translations;
 using React_Receiver.Models;
 using React_Receiver.Services;
 using Xunit;
@@ -236,13 +238,9 @@ public sealed class SchemaEndpointsTests
     private static FormSchemasController CreateFormSchemasController(TableStorageOptions? tableOptions = null)
     {
         var controller = new FormSchemasController(
-            new FormSchemaService(
-                new BlobServiceClient("UseDevelopmentStorage=true"),
-                new TableServiceClient("UseDevelopmentStorage=true"),
-                new FileBootstrapDataProvider(),
-                NullLogger<FormSchemaService>.Instance,
-                Options.Create(new BlobStorageOptions()),
-                Options.Create(tableOptions ?? new TableStorageOptions())),
+            new FormSchemaApplicationService(
+                new DisabledFormSchemaRepository(),
+                new FileBootstrapDataProvider()),
             NullLogger<FormSchemasController>.Instance)
         {
             ControllerContext = new ControllerContext
@@ -257,10 +255,9 @@ public sealed class SchemaEndpointsTests
     private static TranslationsController CreateTranslationsController(TableStorageOptions? tableOptions = null)
     {
         var controller = new TranslationsController(
-            new TranslationService(
-                new TableServiceClient("UseDevelopmentStorage=true"),
-                new FileBootstrapDataProvider(),
-                Options.Create(tableOptions ?? new TableStorageOptions())))
+            new TranslationApplicationService(
+                new DisabledTranslationRepository(),
+                new FileBootstrapDataProvider()))
         {
             ControllerContext = new ControllerContext
             {
@@ -271,7 +268,7 @@ public sealed class SchemaEndpointsTests
         return controller;
     }
 
-    private sealed class FakeUserQueryService : IUserQueryService
+    private sealed class FakeUserQueryService : IUserApplicationService
     {
         public Task<GetUserResponse?> GetUserAsync(
             string userId,
@@ -289,7 +286,7 @@ public sealed class SchemaEndpointsTests
         }
     }
 
-    private sealed class ThrowingFormSchemaService : IFormSchemaService
+    private sealed class ThrowingFormSchemaService : IFormSchemaApplicationService
     {
         private readonly Exception _exception;
 
@@ -314,6 +311,57 @@ public sealed class SchemaEndpointsTests
         }
 
         public Task ImportSeedDataAsync(bool overwriteExisting, CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+    }
+
+    private sealed class DisabledFormSchemaRepository : IFormSchemaRepository
+    {
+        public bool IsConfigured => false;
+
+        public Task<FormSchemaCatalogResponse> ListAsync(CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<FormSchemaResponse?> GetAsync(string formType, CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<bool> ExistsAsync(string formType, CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<UpsertResult<FormSchemaResponse>> UpsertAsync(
+            string formType,
+            FormSchemaResponse request,
+            CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+    }
+
+    private sealed class DisabledTranslationRepository : ITranslationRepository
+    {
+        public bool IsConfigured => false;
+
+        public Task<TranslationsResponse?> GetAsync(string language, CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<bool> ExistsAsync(string language, CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<UpsertResult<TranslationsResponse>> UpsertAsync(
+            string language,
+            TranslationsResponse request,
+            CancellationToken cancellationToken)
         {
             throw new NotSupportedException();
         }

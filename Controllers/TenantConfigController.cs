@@ -1,5 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
-using React_Receiver.Handlers;
+using React_Receiver.Application.TenantConfig;
 using React_Receiver.Models;
 
 namespace React_Receiver.Controllers;
@@ -8,24 +8,24 @@ namespace React_Receiver.Controllers;
 [Route("tenant-config")]
 public sealed class TenantConfigController : ControllerBase
 {
-    private readonly ITenantConfigHandler _tenantConfigHandler;
+    private readonly ITenantConfigApplicationService _tenantConfigService;
 
-    public TenantConfigController(ITenantConfigHandler tenantConfigHandler)
+    public TenantConfigController(ITenantConfigApplicationService tenantConfigService)
     {
-        _tenantConfigHandler = tenantConfigHandler;
+        _tenantConfigService = tenantConfigService;
     }
 
     [HttpGet]
     public async Task<ActionResult<TenantBootstrapResponse>> GetTenantConfig([FromQuery] TenantConfigQueryRequest request)
     {
-        var tenantConfig = await _tenantConfigHandler.GetTenantConfigAsync(request.TenantId, HttpContext.RequestAborted);
+        var tenantConfig = await _tenantConfigService.GetAsync(request.TenantId, HttpContext.RequestAborted);
         return tenantConfig is null ? NotFound() : Ok(tenantConfig);
     }
 
     [HttpPost]
     public async Task<ActionResult<TenantBootstrapResponse>> UpsertTenantConfig([FromBody] TenantBootstrapResponse request)
     {
-        var tenantConfig = await _tenantConfigHandler.UpsertTenantConfigAsync(request, HttpContext.RequestAborted);
+        var tenantConfig = await _tenantConfigService.UpsertAsync(request, HttpContext.RequestAborted);
         return Ok(tenantConfig);
     }
 }

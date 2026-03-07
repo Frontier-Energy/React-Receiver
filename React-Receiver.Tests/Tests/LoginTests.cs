@@ -1,8 +1,8 @@
 using System;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using React_Receiver.Application.Auth;
 using React_Receiver.Controllers;
-using React_Receiver.Handlers;
 using React_Receiver.Models;
 using Xunit;
 
@@ -11,11 +11,11 @@ namespace React_Receiver.Tests;
 public sealed class LoginTests
 {
     [Fact]
-    public void Login_ReturnsOkWithGeneratedUserId()
+    public async Task Login_ReturnsOkWithGeneratedUserId()
     {
         var controller = CreateController();
 
-        var result = controller.Login(new LoginRequestCommand("user@example.com"));
+        var result = await controller.Login(new LoginRequestCommand("user@example.com"));
 
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         var response = Assert.IsType<LoginRequestResponse>(ok.Value);
@@ -24,9 +24,7 @@ public sealed class LoginTests
 
     private static AuthController CreateController()
     {
-        var controller = new AuthController(
-            new FakeLoginRequestHandler(),
-            new FakeRegisterRequestHandler())
+        var controller = new AuthController(new FakeAuthApplicationService())
         {
             ControllerContext = new ControllerContext
             {
@@ -36,22 +34,19 @@ public sealed class LoginTests
 
         return controller;
     }
-    private sealed class FakeLoginRequestHandler : ILoginRequestHandler
-    {
-        public LoginRequestResponse HandleLogin(LoginRequestCommand request)
-        {
-            return new LoginRequestResponse(UserId: Guid.NewGuid().ToString("N"));
-        }
-    }
 
-    private sealed class FakeRegisterRequestHandler : IRegisterRequestHandler
+    private sealed class FakeAuthApplicationService : IAuthApplicationService
     {
-        public Task<string> HandleRegisterAsync(
+        public Task<LoginRequestResponse> LoginAsync(LoginRequestCommand request, CancellationToken cancellationToken)
+        {
+            return Task.FromResult(new LoginRequestResponse(UserId: Guid.NewGuid().ToString("N")));
+        }
+
+        public Task<RegisterResponseModel> RegisterAsync(
             RegisterRequestModel request,
-            string userId,
             CancellationToken cancellationToken)
         {
-            return Task.FromResult(userId);
+            return Task.FromResult(new RegisterResponseModel(Guid.NewGuid().ToString("N")));
         }
     }
 }

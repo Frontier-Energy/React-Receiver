@@ -1,4 +1,5 @@
 using React_Receiver.Models;
+using React_Receiver.Infrastructure.FormSchemas;
 using React_Receiver.Services;
 using Azure.Storage.Blobs;
 using Azure.Data.Tables;
@@ -42,11 +43,10 @@ public sealed class FormSchemaEntityTests
     [Fact]
     public async Task ReadSchemaAsync_FallsBackToInlineSections_WhenBlobStorageIsNotConfigured()
     {
-        var service = new FormSchemaService(
+        var repository = new AzureFormSchemaRepository(
             new BlobServiceClient("UseDevelopmentStorage=true"),
             new TableServiceClient("UseDevelopmentStorage=true"),
-            new FileBootstrapDataProvider(),
-            NullLogger<FormSchemaService>.Instance,
+            NullLogger<AzureFormSchemaRepository>.Instance,
             Options.Create(new BlobStorageOptions()),
             Options.Create(new TableStorageOptions()));
         var entity = new FormSchemaEntity
@@ -58,7 +58,7 @@ public sealed class FormSchemaEntityTests
                 "[{\"Title\":\"General\",\"Fields\":[{\"Id\":\"field-1\",\"Label\":\"Field 1\",\"Type\":\"text\",\"Required\":true}]}]"
         };
 
-        var response = await service.ReadSchemaAsync(entity, CancellationToken.None);
+        var response = await repository.ReadSchemaAsync(entity, CancellationToken.None);
 
         Assert.Equal("Legacy Schema", response.FormName);
         Assert.Single(response.Sections);

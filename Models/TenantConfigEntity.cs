@@ -46,19 +46,21 @@ public sealed class TenantConfigEntity : ITableEntity
 
     public static TenantConfigEntity FromResponse(TenantBootstrapResponse response)
     {
+        var uiDefaults = response.UiDefaults ?? new UiDefaults(string.Empty, string.Empty, string.Empty, false, false, false);
+
         return new TenantConfigEntity
         {
             PartitionKey = PartitionKeyValue,
-            RowKey = response.TenantId,
-            TenantId = response.TenantId,
-            DisplayName = response.DisplayName,
-            Theme = response.UiDefaults.Theme,
-            Font = response.UiDefaults.Font,
-            Language = response.UiDefaults.Language,
-            ShowLeftFlyout = response.UiDefaults.ShowLeftFlyout,
-            ShowRightFlyout = response.UiDefaults.ShowRightFlyout,
-            ShowInspectionStatsButton = response.UiDefaults.ShowInspectionStatsButton,
-            EnabledFormsJson = JsonSerializer.Serialize(response.EnabledForms),
+            RowKey = response.TenantId ?? string.Empty,
+            TenantId = response.TenantId ?? string.Empty,
+            DisplayName = response.DisplayName ?? string.Empty,
+            Theme = uiDefaults.Theme ?? string.Empty,
+            Font = uiDefaults.Font ?? string.Empty,
+            Language = uiDefaults.Language ?? string.Empty,
+            ShowLeftFlyout = uiDefaults.ShowLeftFlyout,
+            ShowRightFlyout = uiDefaults.ShowRightFlyout,
+            ShowInspectionStatsButton = uiDefaults.ShowInspectionStatsButton,
+            EnabledFormsJson = JsonSerializer.Serialize(response.EnabledForms ?? Array.Empty<string>()),
             LoginRequired = response.LoginRequired
         };
     }

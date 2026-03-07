@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
+using React_Receiver.Application.Inspections;
 using React_Receiver.Handlers;
 using React_Receiver.Models;
-using React_Receiver.Services;
 
 namespace React_Receiver.Controllers;
 
@@ -9,18 +9,15 @@ namespace React_Receiver.Controllers;
 [Route("inspections")]
 public sealed class InspectionsController : ControllerBase
 {
-    private readonly IInspectionRequestHandler _inspectionRequestHandler;
+    private readonly IInspectionApplicationService _inspectionApplicationService;
     private readonly IReceiveInspectionRequestParser _receiveInspectionRequestParser;
-    private readonly IInspectionQueryService _inspectionQueryService;
 
     public InspectionsController(
-        IInspectionRequestHandler inspectionRequestHandler,
-        IReceiveInspectionRequestParser receiveInspectionRequestParser,
-        IInspectionQueryService inspectionQueryService)
+        IInspectionApplicationService inspectionApplicationService,
+        IReceiveInspectionRequestParser receiveInspectionRequestParser)
     {
-        _inspectionRequestHandler = inspectionRequestHandler;
+        _inspectionApplicationService = inspectionApplicationService;
         _receiveInspectionRequestParser = receiveInspectionRequestParser;
-        _inspectionQueryService = inspectionQueryService;
     }
 
     [HttpPost]
@@ -34,7 +31,7 @@ public sealed class InspectionsController : ControllerBase
             return BadRequest("Invalid payload JSON.");
         }
 
-        var response = await _inspectionRequestHandler.SaveRequestAsync(parsedRequest, HttpContext.RequestAborted);
+        var response = await _inspectionApplicationService.ReceiveInspectionAsync(parsedRequest, HttpContext.RequestAborted);
         return Ok(response);
     }
 
@@ -42,7 +39,7 @@ public sealed class InspectionsController : ControllerBase
     [HttpGet("/QHVAC/GetInspection")]
     public async Task<ActionResult<GetInspectionResponse>> GetInspection(GetInspectionRequest request)
     {
-        var response = await _inspectionQueryService.GetInspectionAsync(request.SessionId!, HttpContext.RequestAborted);
+        var response = await _inspectionApplicationService.GetInspectionAsync(request.SessionId!, HttpContext.RequestAborted);
         return response is null ? NotFound() : Ok(response);
     }
 
@@ -50,7 +47,7 @@ public sealed class InspectionsController : ControllerBase
     [HttpGet("/QHVAC/GetFile")]
     public async Task<IActionResult> GetFile(GetInspectionFileRequest request)
     {
-        var response = await _inspectionQueryService.GetFileAsync(
+        var response = await _inspectionApplicationService.GetFileAsync(
             request.SessionId!,
             request.FileName!,
             HttpContext.RequestAborted);

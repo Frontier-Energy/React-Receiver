@@ -1,6 +1,7 @@
 using System;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using React_Receiver.Application.TenantConfig;
 using React_Receiver.Controllers;
 using React_Receiver.Models;
 using Xunit;
@@ -42,7 +43,7 @@ public sealed class TenantConfigTests
 
     private static TenantConfigController CreateController()
     {
-        var controller = new TenantConfigController(new FakeTenantConfigHandler())
+        var controller = new TenantConfigController(new FakeTenantConfigService())
         {
             ControllerContext = new ControllerContext
             {
@@ -53,9 +54,9 @@ public sealed class TenantConfigTests
         return controller;
     }
 
-    private sealed class FakeTenantConfigHandler : React_Receiver.Handlers.ITenantConfigHandler
+    private sealed class FakeTenantConfigService : ITenantConfigApplicationService
     {
-        public Task<TenantBootstrapResponse?> GetTenantConfigAsync(string? tenantId, CancellationToken cancellationToken)
+        public Task<TenantBootstrapResponse?> GetAsync(string? tenantId, CancellationToken cancellationToken)
         {
             if (!string.IsNullOrWhiteSpace(tenantId) && !string.Equals(tenantId, "qhvac", StringComparison.OrdinalIgnoreCase))
             {
@@ -76,7 +77,7 @@ public sealed class TenantConfigTests
                 LoginRequired: true));
         }
 
-        public Task<TenantBootstrapResponse> UpsertTenantConfigAsync(
+        public Task<TenantBootstrapResponse> UpsertAsync(
             TenantBootstrapResponse tenantConfig,
             CancellationToken cancellationToken)
         {

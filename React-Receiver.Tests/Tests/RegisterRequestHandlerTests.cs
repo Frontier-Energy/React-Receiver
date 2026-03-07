@@ -1,10 +1,9 @@
 using System.Threading;
 using System.Threading.Tasks;
-using Azure.Data.Tables;
-using Microsoft.Extensions.Options;
-using React_Receiver.Handlers;
+using React_Receiver.Application.Auth;
+using React_Receiver.Domain.Users;
 using React_Receiver.Models;
-using React_Receiver.Services;
+using React_Receiver.Infrastructure.Users;
 using Xunit;
 
 namespace React_Receiver.Tests;
@@ -12,32 +11,60 @@ namespace React_Receiver.Tests;
 public sealed class RegisterRequestHandlerTests
 {
     [Fact]
-    public async Task HandleRegisterAsync_ReturnsSameUserId_WhenConnectionStringEmpty_WithEmail()
+    public async Task RegisterAsync_GeneratesUserId_WhenNoExistingUserFound()
+    {
+        var handler = CreateHandler();
+        var request = new RegisterRequestModel("new@example.com", "A", "B");
+
+        var result = await handler.RegisterAsync(request, CancellationToken.None);
+
+        Assert.False(string.IsNullOrWhiteSpace(result.UserId));
+    }
+
+    [Fact]
+    public async Task RegisterAsync_ReturnsExistingUserId_WhenEmailAlreadyRegistered()
     {
         var handler = CreateHandler();
         var request = new RegisterRequestModel("a@example.com", "A", "B");
 
-        var result = await handler.HandleRegisterAsync(request, "user-1", CancellationToken.None);
+        var result = await handler.RegisterAsync(request, CancellationToken.None);
 
-        Assert.Equal("user-1", result);
+        Assert.Equal("existing-user", result.UserId);
     }
 
-    [Fact]
-    public async Task HandleRegisterAsync_ReturnsSameUserId_WhenConnectionStringEmpty_WithoutEmail()
+    private static AuthApplicationService CreateHandler()
     {
-        var handler = CreateHandler();
-        var request = new RegisterRequestModel(null, "A", "B");
-
-        var result = await handler.HandleRegisterAsync(request, "user-2", CancellationToken.None);
-
-        Assert.Equal("user-2", result);
+        return new AuthApplicationService(new FakeUserRepository());
     }
 
-    private static RegisterRequestHandler CreateHandler()
+    private sealed class FakeUserRepository : IUserRepository
     {
-        var tableClient = new TableServiceClient("UseDevelopmentStorage=true");
-        var options = Options.Create(new TableStorageOptions { ConnectionString = string.Empty });
-        return new RegisterRequestHandler(tableClient, options);
-    }
+        public Task<UserProfile?> GetByIdAsync(string userId, CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
 
+        public Task<UserProfile?> FindByEmailAsync(string email, CancellationToken cancellationToken)
+        {
+            var user = string.Equals(email, "a@example.com", StringComparison.OrdinalIgnoreCase)
+                ? new UserProfile("existing-user", email, "A", "B")
+                : null;
+            return Task.FromResult(user);
+        }
+
+        public Task AddAsync(UserProfile user, CancellationToken cancellationToken)
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task<CurrentUser?> GetCurrentUserAsync(CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task SaveCurrentUserAsync(CurrentUser user, CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+    }
 }

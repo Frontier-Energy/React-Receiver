@@ -4,10 +4,11 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using React_Receiver.Application.Inspections;
 using React_Receiver.Controllers;
 using React_Receiver.Handlers;
+using React_Receiver.Infrastructure.Inspections;
 using React_Receiver.Models;
-using React_Receiver.Services;
 using Xunit;
 
 namespace React_Receiver.Tests;
@@ -70,8 +71,7 @@ public sealed class ReceiveInspectionTests
     {
         var controller = new InspectionsController(
             handler,
-            new ReceiveInspectionRequestParser(),
-            new FakeInspectionQueryService())
+            new ReceiveInspectionRequestParser())
         {
             ControllerContext = new ControllerContext
             {
@@ -89,13 +89,13 @@ public sealed class ReceiveInspectionTests
         return new FormFile(stream, 0, stream.Length, "files", fileName);
     }
 
-    private sealed class FakeInspectionRequestHandler : IInspectionRequestHandler
+    private sealed class FakeInspectionRequestHandler : IInspectionApplicationService
     {
         public int CallCount { get; private set; }
         public ReceiveInspectionRequest? LastRequest { get; private set; }
         public CancellationToken LastToken { get; private set; }
 
-        public Task<ReceiveInspectionResponse> SaveRequestAsync(
+        public Task<ReceiveInspectionResponse> ReceiveInspectionAsync(
             ReceiveInspectionRequest request,
             CancellationToken cancellationToken)
         {
@@ -107,13 +107,10 @@ public sealed class ReceiveInspectionTests
                 SessionId: request.SessionId ?? string.Empty,
                 Name: request.Name ?? string.Empty,
                 QueryParams: request.QueryParams ?? new Dictionary<string, string>(),
-                Message: "OK");
+            Message: "OK");
             return Task.FromResult(response);
         }
-    }
 
-    private sealed class FakeInspectionQueryService : IInspectionQueryService
-    {
         public Task<GetInspectionResponse?> GetInspectionAsync(string sessionId, CancellationToken cancellationToken)
         {
             throw new NotSupportedException();

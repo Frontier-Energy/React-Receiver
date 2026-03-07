@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
+using React_Receiver.Application.Users;
 using React_Receiver.Models;
-using React_Receiver.Services;
 
 namespace React_Receiver.Controllers;
 
@@ -8,9 +8,9 @@ namespace React_Receiver.Controllers;
 [Route("users")]
 public sealed class UsersController : ControllerBase
 {
-    private readonly IUserQueryService _userQueryService;
+    private readonly IUserApplicationService _userQueryService;
 
-    public UsersController(IUserQueryService userQueryService)
+    public UsersController(IUserApplicationService userQueryService)
     {
         _userQueryService = userQueryService;
     }

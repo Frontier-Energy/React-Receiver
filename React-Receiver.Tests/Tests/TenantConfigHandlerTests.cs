@@ -1,8 +1,8 @@
-using Azure.Data.Tables;
-using Microsoft.Extensions.Options;
-using React_Receiver.Handlers;
+using React_Receiver.Application.TenantConfig;
+using React_Receiver.Domain.Tenants;
 using React_Receiver.Models;
 using React_Receiver.Services;
+using React_Receiver.Infrastructure.TenantConfig;
 using Xunit;
 
 namespace React_Receiver.Tests;
@@ -10,11 +10,11 @@ namespace React_Receiver.Tests;
 public sealed class TenantConfigHandlerTests
 {
     [Fact]
-    public async Task GetTenantConfigAsync_ReturnsDefaultPayload_WhenConnectionStringEmpty()
+    public async Task GetAsync_ReturnsDefaultPayload_WhenRepositoryDisabled()
     {
         var handler = CreateHandler();
 
-        var result = await handler.GetTenantConfigAsync(null, CancellationToken.None);
+        var result = await handler.GetAsync(null, CancellationToken.None);
 
         Assert.NotNull(result);
         Assert.Equal("qhvac", result.TenantId);
@@ -25,7 +25,7 @@ public sealed class TenantConfigHandlerTests
     }
 
     [Fact]
-    public async Task UpsertTenantConfigAsync_ReturnsNormalizedPayload_WhenConnectionStringEmpty()
+    public async Task UpsertAsync_ReturnsNormalizedPayload_WhenRepositoryDisabled()
     {
         var handler = CreateHandler();
         var payload = new TenantBootstrapResponse(
@@ -41,7 +41,7 @@ public sealed class TenantConfigHandlerTests
             EnabledForms: ["hvac"],
             LoginRequired: false);
 
-        var result = await handler.UpsertTenantConfigAsync(payload, CancellationToken.None);
+        var result = await handler.UpsertAsync(payload, CancellationToken.None);
 
         Assert.Equal("custom-tenant", result.TenantId);
         Assert.Equal("Custom Tenant", result.DisplayName);
@@ -51,19 +51,37 @@ public sealed class TenantConfigHandlerTests
     }
 
     [Fact]
-    public async Task GetTenantConfigAsync_ReturnsNull_ForUnknownTenant_WhenConnectionStringEmpty()
+    public async Task GetAsync_ReturnsNull_ForUnknownTenant_WhenRepositoryDisabled()
     {
         var handler = CreateHandler();
 
-        var result = await handler.GetTenantConfigAsync("unknown", CancellationToken.None);
+        var result = await handler.GetAsync("unknown", CancellationToken.None);
 
         Assert.Null(result);
     }
 
-    private static TenantConfigHandler CreateHandler()
+    private static TenantConfigApplicationService CreateHandler()
     {
-        var tableClient = new TableServiceClient("UseDevelopmentStorage=true");
-        var options = Options.Create(new TableStorageOptions { ConnectionString = string.Empty });
-        return new TenantConfigHandler(tableClient, new FileBootstrapDataProvider(), options);
+        return new TenantConfigApplicationService(new DisabledTenantConfigRepository(), new FileBootstrapDataProvider());
+    }
+
+    private sealed class DisabledTenantConfigRepository : ITenantConfigRepository
+    {
+        public bool IsConfigured => false;
+
+        public Task<TenantConfiguration?> GetAsync(string tenantId, CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<bool> ExistsAsync(string tenantId, CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<TenantConfiguration> UpsertAsync(TenantConfiguration tenantConfiguration, CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
     }
 }

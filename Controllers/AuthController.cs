@@ -1,5 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
-using React_Receiver.Handlers;
+using React_Receiver.Application.Auth;
 using React_Receiver.Models;
 
 namespace React_Receiver.Controllers;
@@ -8,22 +8,18 @@ namespace React_Receiver.Controllers;
 [Route("auth")]
 public sealed class AuthController : ControllerBase
 {
-    private readonly ILoginRequestHandler _loginRequestHandler;
-    private readonly IRegisterRequestHandler _registerRequestHandler;
+    private readonly IAuthApplicationService _authApplicationService;
 
-    public AuthController(
-        ILoginRequestHandler loginRequestHandler,
-        IRegisterRequestHandler registerRequestHandler)
+    public AuthController(IAuthApplicationService authApplicationService)
     {
-        _loginRequestHandler = loginRequestHandler;
-        _registerRequestHandler = registerRequestHandler;
+        _authApplicationService = authApplicationService;
     }
 
     [HttpPost("login")]
     [HttpPost("/QHVAC/Login")]
-    public ActionResult<LoginRequestResponse> Login([FromBody] LoginRequestCommand request)
+    public async Task<ActionResult<LoginRequestResponse>> Login([FromBody] LoginRequestCommand request)
     {
-        var response = _loginRequestHandler.HandleLogin(request);
+        var response = await _authApplicationService.LoginAsync(request, HttpContext.RequestAborted);
         return Ok(response);
     }
 
@@ -31,12 +27,7 @@ public sealed class AuthController : ControllerBase
     [HttpPost("/QHVAC/Register")]
     public async Task<ActionResult<RegisterResponseModel>> Register([FromBody] RegisterRequestModel request)
     {
-        var userId = Guid.NewGuid().ToString("N");
-        userId = await _registerRequestHandler.HandleRegisterAsync(
-            request,
-            userId,
-            HttpContext.RequestAborted);
-
-        return Ok(new RegisterResponseModel(UserId: userId));
+        var response = await _authApplicationService.RegisterAsync(request, HttpContext.RequestAborted);
+        return Ok(response);
     }
 }

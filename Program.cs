@@ -1,5 +1,16 @@
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using React_Receiver.Application.Auth;
+using React_Receiver.Application.FormSchemas;
+using React_Receiver.Application.Inspections;
+using React_Receiver.Application.TenantConfig;
+using React_Receiver.Application.Translations;
+using React_Receiver.Application.Users;
 using React_Receiver.Services;
+using React_Receiver.Infrastructure.FormSchemas;
+using React_Receiver.Infrastructure.Inspections;
+using React_Receiver.Infrastructure.TenantConfig;
+using React_Receiver.Infrastructure.Translations;
+using React_Receiver.Infrastructure.Users;
 using React_Receiver.Validation;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -63,15 +74,18 @@ builder.Services.AddHealthChecks()
         "table-storage",
         tags: ["startup", "ready"]);
 builder.Services.AddSingleton<IBootstrapDataProvider, FileBootstrapDataProvider>();
-builder.Services.AddSingleton<React_Receiver.Handlers.IInspectionRequestHandler, React_Receiver.Handlers.InspectionRequestHandler>();
-builder.Services.AddSingleton<React_Receiver.Handlers.ILoginRequestHandler, React_Receiver.Handlers.LoginRequestHandler>();
 builder.Services.AddSingleton<React_Receiver.Handlers.IReceiveInspectionRequestParser, React_Receiver.Handlers.ReceiveInspectionRequestParser>();
-builder.Services.AddSingleton<React_Receiver.Handlers.IRegisterRequestHandler, React_Receiver.Handlers.RegisterRequestHandler>();
-builder.Services.AddSingleton<React_Receiver.Handlers.ITenantConfigHandler, React_Receiver.Handlers.TenantConfigHandler>();
-builder.Services.AddSingleton<IInspectionQueryService, InspectionQueryService>();
-builder.Services.AddSingleton<IUserQueryService, UserQueryService>();
-builder.Services.AddSingleton<IFormSchemaService, FormSchemaService>();
-builder.Services.AddSingleton<ITranslationService, TranslationService>();
+builder.Services.AddSingleton<IUserRepository, AzureTableUserRepository>();
+builder.Services.AddSingleton<IInspectionRepository, AzureInspectionRepository>();
+builder.Services.AddSingleton<IFormSchemaRepository, AzureFormSchemaRepository>();
+builder.Services.AddSingleton<ITranslationRepository, AzureTableTranslationRepository>();
+builder.Services.AddSingleton<ITenantConfigRepository, AzureTableTenantConfigRepository>();
+builder.Services.AddSingleton<IAuthApplicationService, AuthApplicationService>();
+builder.Services.AddSingleton<IInspectionApplicationService, InspectionApplicationService>();
+builder.Services.AddSingleton<IUserApplicationService, UserApplicationService>();
+builder.Services.AddSingleton<IFormSchemaApplicationService, FormSchemaApplicationService>();
+builder.Services.AddSingleton<ITranslationApplicationService, TranslationApplicationService>();
+builder.Services.AddSingleton<ITenantConfigApplicationService, TenantConfigApplicationService>();
 builder.Services.AddRequestValidation();
 builder.Services.AddHostedService<StartupHealthCheckHostedService>();
 builder.Services.AddHostedService<BootstrapDataHostedService>();
