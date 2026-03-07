@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using React_Receiver.Application.TenantConfig;
 using React_Receiver.Controllers;
 using React_Receiver.Models;
+using React_Receiver.Tests.TestDoubles;
 using Xunit;
 
 namespace React_Receiver.Tests;
@@ -43,7 +44,29 @@ public sealed class TenantConfigTests
 
     private static TenantConfigController CreateController()
     {
-        var controller = new TenantConfigController(new FakeTenantConfigService())
+        var controller = new TenantConfigController(new TestSender((request, _) =>
+        {
+            return request switch
+            {
+                GetTenantConfigQuery query when !string.IsNullOrWhiteSpace(query.TenantId) &&
+                                               !string.Equals(query.TenantId, "qhvac", StringComparison.OrdinalIgnoreCase)
+                    => Task.FromResult<object?>(null),
+                GetTenantConfigQuery => Task.FromResult<object?>(new TenantBootstrapResponse(
+                    TenantId: "qhvac",
+                    DisplayName: "QHVAC",
+                    UiDefaults: new UiDefaults(
+                        Theme: "harbor",
+                        Font: "Tahoma, \"Trebuchet MS\", Arial, sans-serif",
+                        Language: "en",
+                        ShowLeftFlyout: true,
+                        ShowRightFlyout: true,
+                        ShowInspectionStatsButton: false),
+                    EnabledForms: ["electrical", "electrical-sf", "hvac"],
+                    LoginRequired: true)),
+                UpsertTenantConfigCommand command => Task.FromResult<object?>(command.Request),
+                _ => throw new NotSupportedException()
+            };
+        }))
         {
             ControllerContext = new ControllerContext
             {
@@ -52,41 +75,5 @@ public sealed class TenantConfigTests
         };
 
         return controller;
-    }
-
-    private sealed class FakeTenantConfigService : ITenantConfigApplicationService
-    {
-        public Task<TenantBootstrapResponse?> GetAsync(string? tenantId, CancellationToken cancellationToken)
-        {
-            if (!string.IsNullOrWhiteSpace(tenantId) && !string.Equals(tenantId, "qhvac", StringComparison.OrdinalIgnoreCase))
-            {
-                return Task.FromResult<TenantBootstrapResponse?>(null);
-            }
-
-            return Task.FromResult<TenantBootstrapResponse?>(new TenantBootstrapResponse(
-                TenantId: "qhvac",
-                DisplayName: "QHVAC",
-                UiDefaults: new UiDefaults(
-                    Theme: "harbor",
-                    Font: "Tahoma, \"Trebuchet MS\", Arial, sans-serif",
-                    Language: "en",
-                    ShowLeftFlyout: true,
-                    ShowRightFlyout: true,
-                    ShowInspectionStatsButton: false),
-                EnabledForms: ["electrical", "electrical-sf", "hvac"],
-                LoginRequired: true));
-        }
-
-        public Task<TenantBootstrapResponse> UpsertAsync(
-            TenantBootstrapResponse tenantConfig,
-            CancellationToken cancellationToken)
-        {
-            return Task.FromResult(tenantConfig);
-        }
-
-        public Task ImportSeedDataAsync(bool overwriteExisting, CancellationToken cancellationToken)
-        {
-            return Task.CompletedTask;
-        }
     }
 }

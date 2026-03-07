@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using React_Receiver.Application.Auth;
 using React_Receiver.Controllers;
 using React_Receiver.Models;
+using React_Receiver.Tests.TestDoubles;
 using Xunit;
 
 namespace React_Receiver.Tests;
@@ -24,7 +25,15 @@ public sealed class LoginTests
 
     private static AuthController CreateController()
     {
-        var controller = new AuthController(new FakeAuthApplicationService())
+        var controller = new AuthController(new TestSender((request, _) =>
+        {
+            return request switch
+            {
+                LoginCommand => Task.FromResult<object?>(new LoginRequestResponse(Guid.NewGuid().ToString("N"))),
+                RegisterCommand => Task.FromResult<object?>(new RegisterResponseModel(Guid.NewGuid().ToString("N"))),
+                _ => throw new NotSupportedException()
+            };
+        }))
         {
             ControllerContext = new ControllerContext
             {
@@ -33,20 +42,5 @@ public sealed class LoginTests
         };
 
         return controller;
-    }
-
-    private sealed class FakeAuthApplicationService : IAuthApplicationService
-    {
-        public Task<LoginRequestResponse> LoginAsync(LoginRequestCommand request, CancellationToken cancellationToken)
-        {
-            return Task.FromResult(new LoginRequestResponse(UserId: Guid.NewGuid().ToString("N")));
-        }
-
-        public Task<RegisterResponseModel> RegisterAsync(
-            RegisterRequestModel request,
-            CancellationToken cancellationToken)
-        {
-            return Task.FromResult(new RegisterResponseModel(Guid.NewGuid().ToString("N")));
-        }
     }
 }

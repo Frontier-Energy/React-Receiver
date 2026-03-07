@@ -1,3 +1,4 @@
+using MediatR;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using React_Receiver.Application.Auth;
 using React_Receiver.Application.FormSchemas;
@@ -5,12 +6,15 @@ using React_Receiver.Application.Inspections;
 using React_Receiver.Application.TenantConfig;
 using React_Receiver.Application.Translations;
 using React_Receiver.Application.Users;
-using React_Receiver.Services;
 using React_Receiver.Infrastructure.FormSchemas;
 using React_Receiver.Infrastructure.Inspections;
 using React_Receiver.Infrastructure.TenantConfig;
 using React_Receiver.Infrastructure.Translations;
 using React_Receiver.Infrastructure.Users;
+using React_Receiver.Mediation.Behaviors;
+using React_Receiver.Mediation.Exceptions;
+using React_Receiver.Mediation.Transactions;
+using React_Receiver.Services;
 using React_Receiver.Validation;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -26,6 +30,8 @@ builder.Services.AddControllers(options =>
         options.SuppressModelStateInvalidFilter = true;
     });
 builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddProblemDetails();
+builder.Services.AddExceptionHandler<ApiExceptionHandler>();
 builder.Services.AddSwaggerGen(options =>
 {
     options.SwaggerDoc("v1", new() { Title = "React-Receiver API", Version = "v1" });
@@ -86,6 +92,11 @@ builder.Services.AddSingleton<IUserApplicationService, UserApplicationService>()
 builder.Services.AddSingleton<IFormSchemaApplicationService, FormSchemaApplicationService>();
 builder.Services.AddSingleton<ITranslationApplicationService, TranslationApplicationService>();
 builder.Services.AddSingleton<ITenantConfigApplicationService, TenantConfigApplicationService>();
+builder.Services.AddSingleton<IRequestTransaction, NoOpRequestTransaction>();
+builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssemblyContaining<Program>());
+builder.Services.AddTransient(typeof(IPipelineBehavior<,>), typeof(UnhandledExceptionBehavior<,>));
+builder.Services.AddTransient(typeof(IPipelineBehavior<,>), typeof(LoggingBehavior<,>));
+builder.Services.AddTransient(typeof(IPipelineBehavior<,>), typeof(TransactionBehavior<,>));
 builder.Services.AddRequestValidation();
 builder.Services.AddHostedService<StartupHealthCheckHostedService>();
 builder.Services.AddHostedService<BootstrapDataHostedService>();
@@ -103,6 +114,7 @@ if (app.Environment.IsDevelopment())
     });
 }
 
+app.UseExceptionHandler();
 app.UseHttpsRedirection();
 
 app.MapControllers();

@@ -9,3 +9,7 @@
 /.dotnet-home
 /.artifacts
 /React-Receiver.Tests/.artifacts
+/obj_verify
+/bin_verify
+/React-Receiver.Tests/bin_verify
+/React-Receiver.Tests/obj_verify

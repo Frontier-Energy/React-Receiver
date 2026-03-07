@@ -1,15 +1,12 @@
 using System;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Logging.Abstractions;
 using React_Receiver.Application.FormSchemas;
 using React_Receiver.Application.Translations;
 using React_Receiver.Application.Users;
 using React_Receiver.Controllers;
-using React_Receiver.Infrastructure.FormSchemas;
-using React_Receiver.Infrastructure.Translations;
 using React_Receiver.Models;
-using React_Receiver.Services;
+using React_Receiver.Tests.TestDoubles;
 using Xunit;
 
 namespace React_Receiver.Tests;
@@ -67,31 +64,9 @@ public sealed class SchemaEndpointsTests
     }
 
     [Fact]
-    public async Task GetFormSchema_ReturnsInternalServerErrorWhenBlobContentIsMissing()
-    {
-        var controller = new FormSchemasController(
-            new ThrowingFormSchemaService(new FormSchemaBlobContentException("missing blob")),
-            NullLogger<FormSchemasController>.Instance)
-        {
-            ControllerContext = new ControllerContext
-            {
-                HttpContext = new DefaultHttpContext()
-            }
-        };
-
-        var result = await controller.GetFormSchema(new FormSchemaRouteRequest { FormType = "hvac" });
-
-        var objectResult = Assert.IsType<ObjectResult>(result.Result);
-        Assert.Equal(StatusCodes.Status500InternalServerError, objectResult.StatusCode);
-    }
-
-    [Fact]
     public async Task UpsertFormSchema_ReturnsOkForKnownFormType()
     {
-        var controller = CreateFormSchemasController(new TableStorageOptions
-        {
-            ConnectionString = string.Empty
-        });
+        var controller = CreateFormSchemasController();
 
         var schema = new FormSchemaResponse(
             FormName: "HVAC Inspection Updated",
@@ -122,10 +97,7 @@ public sealed class SchemaEndpointsTests
     [Fact]
     public async Task UpsertFormSchema_ReturnsCreatedForUnknownFormType()
     {
-        var controller = CreateFormSchemasController(new TableStorageOptions
-        {
-            ConnectionString = string.Empty
-        });
+        var controller = CreateFormSchemasController();
 
         var schema = new FormSchemaResponse(
             FormName: "Custom",
@@ -169,10 +141,7 @@ public sealed class SchemaEndpointsTests
     [Fact]
     public async Task UpsertTranslations_ReturnsOkForKnownLanguage()
     {
-        var controller = CreateTranslationsController(new TableStorageOptions
-        {
-            ConnectionString = string.Empty
-        });
+        var controller = CreateTranslationsController();
 
         var payload = new TranslationsResponse
         {
@@ -197,10 +166,7 @@ public sealed class SchemaEndpointsTests
     [Fact]
     public async Task UpsertTranslations_ReturnsCreatedForUnknownLanguage()
     {
-        var controller = CreateTranslationsController(new TableStorageOptions
-        {
-            ConnectionString = string.Empty
-        });
+        var controller = CreateTranslationsController();
 
         var payload = new TranslationsResponse
         {
@@ -224,7 +190,18 @@ public sealed class SchemaEndpointsTests
 
     private static UsersController CreateUsersController()
     {
-        var controller = new UsersController(new FakeUserQueryService())
+        var controller = new UsersController(new TestSender((request, _) =>
+        {
+            return request switch
+            {
+                GetCurrentUserQuery => Task.FromResult<object?>(new MeResponse(
+                    UserId: "a1b2c3",
+                    Roles: ["admin"],
+                    Permissions: ["tenant.select", "customization.admin"])),
+                GetUserQuery => throw new NotSupportedException(),
+                _ => throw new NotSupportedException()
+            };
+        }))
         {
             ControllerContext = new ControllerContext
             {
@@ -235,13 +212,48 @@ public sealed class SchemaEndpointsTests
         return controller;
     }
 
-    private static FormSchemasController CreateFormSchemasController(TableStorageOptions? tableOptions = null)
+    private static FormSchemasController CreateFormSchemasController()
     {
-        var controller = new FormSchemasController(
-            new FormSchemaApplicationService(
-                new DisabledFormSchemaRepository(),
-                new FileBootstrapDataProvider()),
-            NullLogger<FormSchemasController>.Instance)
+        var controller = new FormSchemasController(new TestSender((request, _) =>
+        {
+            return request switch
+            {
+                ListFormSchemasQuery => Task.FromResult<object?>(new FormSchemaCatalogResponse(
+                    [
+                        new FormSchemaCatalogItemResponse("hvac", "2026-01-01", "\"hvac-v1\"")
+                    ])),
+                GetFormSchemaQuery getQuery when string.Equals(getQuery.FormType, "hvac", StringComparison.OrdinalIgnoreCase)
+                    => Task.FromResult<object?>(new FormSchemaResponse(
+                        FormName: "HVAC Inspection",
+                        Sections:
+                        [
+                            new FormSectionResponse(
+                                Title: "Equipment",
+                                Fields:
+                                [
+                                    new FormFieldResponse(
+                                        Id: "unitLocation",
+                                        Label: "Unit Location",
+                                        Type: "text",
+                                        Required: true)
+                                ])
+                        ])),
+                GetFormSchemaQuery => Task.FromResult<object?>(null),
+                UpsertFormSchemaCommand upsert when string.Equals(upsert.FormType, "custom-form", StringComparison.OrdinalIgnoreCase)
+                    => Task.FromResult<object?>(new UpsertResult<FormSchemaResponse>(
+                        upsert.Request,
+                        true,
+                        "2026-03-06",
+                        "\"custom-form-v1\"")),
+                UpsertFormSchemaCommand upsert
+                    => Task.FromResult<object?>(new UpsertResult<FormSchemaResponse>(
+                        upsert.Request,
+                        false,
+                        "2026-03-06",
+                        "\"hvac-v2\"")),
+                _ => throw new NotSupportedException()
+            };
+        }))
         {
             ControllerContext = new ControllerContext
             {
@@ -252,12 +264,29 @@ public sealed class SchemaEndpointsTests
         return controller;
     }
 
-    private static TranslationsController CreateTranslationsController(TableStorageOptions? tableOptions = null)
+    private static TranslationsController CreateTranslationsController()
     {
-        var controller = new TranslationsController(
-            new TranslationApplicationService(
-                new DisabledTranslationRepository(),
-                new FileBootstrapDataProvider()))
+        var controller = new TranslationsController(new TestSender((request, _) =>
+        {
+            return request switch
+            {
+                GetTranslationsQuery getQuery when string.Equals(getQuery.Language, "es", StringComparison.OrdinalIgnoreCase)
+                    => Task.FromResult<object?>(new TranslationsResponse
+                    {
+                        LanguageName = "Espanol",
+                        App = new AppTranslations
+                        {
+                            Brand = "QControl"
+                        }
+                    }),
+                GetTranslationsQuery => Task.FromResult<object?>(null),
+                UpsertTranslationsCommand upsert when string.Equals(upsert.Language, "fr", StringComparison.OrdinalIgnoreCase)
+                    => Task.FromResult<object?>(new UpsertResult<TranslationsResponse>(upsert.Request, true)),
+                UpsertTranslationsCommand upsert
+                    => Task.FromResult<object?>(new UpsertResult<TranslationsResponse>(upsert.Request, false)),
+                _ => throw new NotSupportedException()
+            };
+        }))
         {
             ControllerContext = new ControllerContext
             {
@@ -267,104 +296,4 @@ public sealed class SchemaEndpointsTests
 
         return controller;
     }
-
-    private sealed class FakeUserQueryService : IUserApplicationService
-    {
-        public Task<GetUserResponse?> GetUserAsync(
-            string userId,
-            CancellationToken cancellationToken)
-        {
-            throw new NotSupportedException();
-        }
-
-        public Task<MeResponse> GetCurrentUserAsync(CancellationToken cancellationToken)
-        {
-            return Task.FromResult(new MeResponse(
-                UserId: "a1b2c3",
-                Roles: ["admin"],
-                Permissions: ["tenant.select", "customization.admin"]));
-        }
-    }
-
-    private sealed class ThrowingFormSchemaService : IFormSchemaApplicationService
-    {
-        private readonly Exception _exception;
-
-        public ThrowingFormSchemaService(Exception exception)
-        {
-            _exception = exception;
-        }
-
-        public Task<FormSchemaCatalogResponse> ListAsync(CancellationToken cancellationToken)
-        {
-            throw new NotSupportedException();
-        }
-
-        public Task<FormSchemaResponse?> GetAsync(string formType, CancellationToken cancellationToken)
-        {
-            throw _exception;
-        }
-
-        public Task<UpsertResult<FormSchemaResponse>> UpsertAsync(string formType, FormSchemaResponse request, CancellationToken cancellationToken)
-        {
-            throw new NotSupportedException();
-        }
-
-        public Task ImportSeedDataAsync(bool overwriteExisting, CancellationToken cancellationToken)
-        {
-            throw new NotSupportedException();
-        }
-    }
-
-    private sealed class DisabledFormSchemaRepository : IFormSchemaRepository
-    {
-        public bool IsConfigured => false;
-
-        public Task<FormSchemaCatalogResponse> ListAsync(CancellationToken cancellationToken)
-        {
-            throw new NotSupportedException();
-        }
-
-        public Task<FormSchemaResponse?> GetAsync(string formType, CancellationToken cancellationToken)
-        {
-            throw new NotSupportedException();
-        }
-
-        public Task<bool> ExistsAsync(string formType, CancellationToken cancellationToken)
-        {
-            throw new NotSupportedException();
-        }
-
-        public Task<UpsertResult<FormSchemaResponse>> UpsertAsync(
-            string formType,
-            FormSchemaResponse request,
-            CancellationToken cancellationToken)
-        {
-            throw new NotSupportedException();
-        }
-    }
-
-    private sealed class DisabledTranslationRepository : ITranslationRepository
-    {
-        public bool IsConfigured => false;
-
-        public Task<TranslationsResponse?> GetAsync(string language, CancellationToken cancellationToken)
-        {
-            throw new NotSupportedException();
-        }
-
-        public Task<bool> ExistsAsync(string language, CancellationToken cancellationToken)
-        {
-            throw new NotSupportedException();
-        }
-
-        public Task<UpsertResult<TranslationsResponse>> UpsertAsync(
-            string language,
-            TranslationsResponse request,
-            CancellationToken cancellationToken)
-        {
-            throw new NotSupportedException();
-        }
-    }
-
 }

@@ -1,6 +1,6 @@
+using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using React_Receiver.Application.Inspections;
-using React_Receiver.Handlers;
 using React_Receiver.Models;
 
 namespace React_Receiver.Controllers;
@@ -9,15 +9,11 @@ namespace React_Receiver.Controllers;
 [Route("inspections")]
 public sealed class InspectionsController : ControllerBase
 {
-    private readonly IInspectionApplicationService _inspectionApplicationService;
-    private readonly IReceiveInspectionRequestParser _receiveInspectionRequestParser;
+    private readonly ISender _sender;
 
-    public InspectionsController(
-        IInspectionApplicationService inspectionApplicationService,
-        IReceiveInspectionRequestParser receiveInspectionRequestParser)
+    public InspectionsController(ISender sender)
     {
-        _inspectionApplicationService = inspectionApplicationService;
-        _receiveInspectionRequestParser = receiveInspectionRequestParser;
+        _sender = sender;
     }
 
     [HttpPost]
@@ -26,12 +22,7 @@ public sealed class InspectionsController : ControllerBase
     public async Task<ActionResult<ReceiveInspectionResponse>> ReceiveInspection(
         [FromForm] ReceiveInspectionFormRequest request)
     {
-        if (!_receiveInspectionRequestParser.TryParseFormRequest(request.Payload, request.Files, out var parsedRequest))
-        {
-            return BadRequest("Invalid payload JSON.");
-        }
-
-        var response = await _inspectionApplicationService.ReceiveInspectionAsync(parsedRequest, HttpContext.RequestAborted);
+        var response = await _sender.Send(new ReceiveInspectionCommand(request), HttpContext.RequestAborted);
         return Ok(response);
     }
 
@@ -39,7 +30,7 @@ public sealed class InspectionsController : ControllerBase
     [HttpGet("/QHVAC/GetInspection")]
     public async Task<ActionResult<GetInspectionResponse>> GetInspection(GetInspectionRequest request)
     {
-        var response = await _inspectionApplicationService.GetInspectionAsync(request.SessionId!, HttpContext.RequestAborted);
+        var response = await _sender.Send(new GetInspectionQuery(request.SessionId!), HttpContext.RequestAborted);
         return response is null ? NotFound() : Ok(response);
     }
 
@@ -47,9 +38,8 @@ public sealed class InspectionsController : ControllerBase
     [HttpGet("/QHVAC/GetFile")]
     public async Task<IActionResult> GetFile(GetInspectionFileRequest request)
     {
-        var response = await _inspectionApplicationService.GetFileAsync(
-            request.SessionId!,
-            request.FileName!,
+        var response = await _sender.Send(
+            new GetInspectionFileQuery(request.SessionId!, request.FileName!),
             HttpContext.RequestAborted);
         return response is null
             ? NotFound()

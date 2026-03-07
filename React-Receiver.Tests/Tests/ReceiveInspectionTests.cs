@@ -7,8 +7,9 @@ using Microsoft.AspNetCore.Mvc;
 using React_Receiver.Application.Inspections;
 using React_Receiver.Controllers;
 using React_Receiver.Handlers;
-using React_Receiver.Infrastructure.Inspections;
+using React_Receiver.Mediation.Exceptions;
 using React_Receiver.Models;
+using React_Receiver.Tests.TestDoubles;
 using Xunit;
 
 namespace React_Receiver.Tests;
@@ -16,23 +17,33 @@ namespace React_Receiver.Tests;
 public sealed class ReceiveInspectionTests
 {
     [Fact]
-    public async Task ReceiveInspection_ReturnsBadRequest_WhenPayloadInvalid()
+    public async Task ReceiveInspectionHandler_Throws_WhenPayloadInvalid()
     {
         var handler = new FakeInspectionRequestHandler();
-        var controller = CreateController(handler);
+        var commandHandler = new ReceiveInspectionCommandHandler(handler, new ReceiveInspectionRequestParser());
 
-        var result = await controller.ReceiveInspection(new ReceiveInspectionFormRequest("not json", null));
+        var exception = await Assert.ThrowsAsync<RequestParsingException>(() =>
+            commandHandler.Handle(new ReceiveInspectionCommand(new ReceiveInspectionFormRequest("not json", null)), CancellationToken.None));
 
-        var badRequest = Assert.IsType<BadRequestObjectResult>(result.Result);
-        Assert.Equal("Invalid payload JSON.", badRequest.Value);
+        Assert.Equal("Invalid payload JSON.", exception.Message);
         Assert.Equal(0, handler.CallCount);
     }
 
     [Fact]
-    public async Task ReceiveInspection_CallsHandlerAndReturnsOk_WhenPayloadMissing()
+    public async Task ReceiveInspection_CallsMediatorAndReturnsOk_WhenPayloadMissing()
     {
-        var handler = new FakeInspectionRequestHandler();
-        var controller = CreateController(handler);
+        ReceiveInspectionCommand? capturedCommand = null;
+        var controller = CreateController((request, _) =>
+        {
+            var command = Assert.IsType<ReceiveInspectionCommand>(request);
+            capturedCommand = command;
+            return Task.FromResult<object?>(new ReceiveInspectionResponse(
+                Status: "Received",
+                SessionId: string.Empty,
+                Name: string.Empty,
+                QueryParams: new Dictionary<string, string>(),
+                Message: "OK"));
+        });
 
         var result = await controller.ReceiveInspection(new ReceiveInspectionFormRequest(null, null));
 
@@ -42,23 +53,22 @@ public sealed class ReceiveInspectionTests
         Assert.Equal(string.Empty, response.SessionId);
         Assert.Equal(string.Empty, response.Name);
         Assert.Empty(response.QueryParams);
-        Assert.Equal(1, handler.CallCount);
-        Assert.NotNull(handler.LastRequest);
-        Assert.Null(handler.LastRequest?.Files);
+        Assert.NotNull(capturedCommand);
+        Assert.Null(capturedCommand!.Request.Files);
     }
 
     [Fact]
-    public async Task ReceiveInspection_UsesParsedPayloadAndFiles()
+    public async Task ReceiveInspectionHandler_UsesParsedPayloadAndFiles()
     {
         var handler = new FakeInspectionRequestHandler();
-        var controller = CreateController(handler);
+        var commandHandler = new ReceiveInspectionCommandHandler(handler, new ReceiveInspectionRequestParser());
         var files = new[] { CreateFormFile("inspection.txt", "hello") };
         var payload = "{\"sessionId\":\"session-1\",\"userId\":\"user-1\",\"name\":\"Sample\",\"queryParams\":{\"a\":\"b\"}}";
 
-        var result = await controller.ReceiveInspection(new ReceiveInspectionFormRequest(payload, files));
+        var response = await commandHandler.Handle(
+            new ReceiveInspectionCommand(new ReceiveInspectionFormRequest(payload, files)),
+            CancellationToken.None);
 
-        var ok = Assert.IsType<OkObjectResult>(result.Result);
-        var response = Assert.IsType<ReceiveInspectionResponse>(ok.Value);
         Assert.Equal("session-1", response.SessionId);
         Assert.Equal("Sample", response.Name);
         Assert.Equal("b", response.QueryParams["a"]);
@@ -67,11 +77,9 @@ public sealed class ReceiveInspectionTests
         Assert.Equal("session-1", handler.LastRequest?.SessionId);
     }
 
-    private static InspectionsController CreateController(FakeInspectionRequestHandler handler)
+    private static InspectionsController CreateController(Func<object, CancellationToken, Task<object?>> handler)
     {
-        var controller = new InspectionsController(
-            handler,
-            new ReceiveInspectionRequestParser())
+        var controller = new InspectionsController(new TestSender(handler))
         {
             ControllerContext = new ControllerContext
             {
@@ -111,17 +119,8 @@ public sealed class ReceiveInspectionTests
             return Task.FromResult(response);
         }
 
-        public Task<GetInspectionResponse?> GetInspectionAsync(string sessionId, CancellationToken cancellationToken)
-        {
-            throw new NotSupportedException();
-        }
+        public Task<GetInspectionResponse?> GetInspectionAsync(string sessionId, CancellationToken cancellationToken) => throw new NotSupportedException();
 
-        public Task<InspectionFileStreamResult?> GetFileAsync(
-            string sessionId,
-            string fileName,
-            CancellationToken cancellationToken)
-        {
-            throw new NotSupportedException();
-        }
+        public Task<React_Receiver.Infrastructure.Inspections.InspectionFileStreamResult?> GetFileAsync(string sessionId, string fileName, CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 }

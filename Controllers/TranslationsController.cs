@@ -1,3 +1,4 @@
+using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using React_Receiver.Application.Translations;
 using React_Receiver.Models;
@@ -8,17 +9,17 @@ namespace React_Receiver.Controllers;
 [Route("translations")]
 public sealed class TranslationsController : ControllerBase
 {
-    private readonly ITranslationApplicationService _translationService;
+    private readonly ISender _sender;
 
-    public TranslationsController(ITranslationApplicationService translationService)
+    public TranslationsController(ISender sender)
     {
-        _translationService = translationService;
+        _sender = sender;
     }
 
     [HttpGet("{language}")]
     public async Task<ActionResult<TranslationsResponse>> GetTranslations([FromRoute] TranslationLanguageRequest request)
     {
-        var response = await _translationService.GetAsync(request.Language!, HttpContext.RequestAborted);
+        var response = await _sender.Send(new GetTranslationsQuery(request.Language!), HttpContext.RequestAborted);
         return response is null ? NotFound() : Ok(response);
     }
 
@@ -27,7 +28,9 @@ public sealed class TranslationsController : ControllerBase
         [FromRoute] TranslationLanguageRequest routeRequest,
         [FromBody] TranslationsResponse request)
     {
-        var response = await _translationService.UpsertAsync(routeRequest.Language!, request, HttpContext.RequestAborted);
+        var response = await _sender.Send(
+            new UpsertTranslationsCommand(routeRequest.Language!, request),
+            HttpContext.RequestAborted);
         if (response.Created)
         {
             return CreatedAtAction(
