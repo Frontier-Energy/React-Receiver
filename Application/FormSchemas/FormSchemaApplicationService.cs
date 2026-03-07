@@ -26,7 +26,7 @@ public sealed class FormSchemaApplicationService : IFormSchemaApplicationService
         return _repository.ListAsync(cancellationToken);
     }
 
-    public Task<FormSchemaResponse?> GetAsync(string formType, CancellationToken cancellationToken)
+    public Task<ResourceEnvelope<FormSchemaResponse>?> GetAsync(string formType, CancellationToken cancellationToken)
     {
         if (!_repository.IsConfigured)
         {
@@ -39,14 +39,15 @@ public sealed class FormSchemaApplicationService : IFormSchemaApplicationService
     public async Task<UpsertResult<FormSchemaResponse>> UpsertAsync(
         string formType,
         FormSchemaResponse request,
+        string? expectedETag,
         CancellationToken cancellationToken)
     {
         if (!_repository.IsConfigured)
         {
-            return _seedStore.Upsert(formType, request);
+            return _seedStore.Upsert(formType, request, expectedETag);
         }
 
-        return await _repository.UpsertAsync(formType, request, cancellationToken);
+        return await _repository.UpsertAsync(formType, request, expectedETag, cancellationToken);
     }
 
     public async Task ImportSeedDataAsync(bool overwriteExisting, CancellationToken cancellationToken)
@@ -63,7 +64,7 @@ public sealed class FormSchemaApplicationService : IFormSchemaApplicationService
                 continue;
             }
 
-            await _repository.UpsertAsync(seed.Key, seed.Value, cancellationToken);
+            await _repository.UpsertAsync(seed.Key, seed.Value, null, cancellationToken);
         }
     }
 }

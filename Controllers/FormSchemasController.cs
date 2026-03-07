@@ -29,7 +29,13 @@ public sealed class FormSchemasController : ControllerBase
     public async Task<ActionResult<FormSchemaResponse>> GetFormSchema([FromRoute] FormSchemaRouteRequest request)
     {
         var response = await _sender.Send(new GetFormSchemaQuery(request.FormType!), HttpContext.RequestAborted);
-        return response is null ? NotFound() : Ok(response);
+        if (response is null)
+        {
+            return NotFound();
+        }
+
+        WriteConcurrencyHeaders(response.ETag, response.Version);
+        return Ok(response.Resource);
     }
 
     [HttpPut("{formType}")]
@@ -41,17 +47,9 @@ public sealed class FormSchemasController : ControllerBase
             "Processing form schema upsert for {FormType}",
             routeRequest.FormType);
         var response = await _sender.Send(
-            new UpsertFormSchemaCommand(routeRequest.FormType!, request),
+            new UpsertFormSchemaCommand(routeRequest.FormType!, request, Request.Headers.IfMatch.ToString()),
             HttpContext.RequestAborted);
-        if (!string.IsNullOrWhiteSpace(response.ETag))
-        {
-            Response.Headers.ETag = response.ETag;
-        }
-
-        if (!string.IsNullOrWhiteSpace(response.Version))
-        {
-            Response.Headers["X-Form-Schema-Version"] = response.Version;
-        }
+        WriteConcurrencyHeaders(response.ETag, response.Version);
 
         if (response.Created)
         {
@@ -72,5 +70,18 @@ public sealed class FormSchemasController : ControllerBase
             response.Version);
 
         return Ok(response.Resource);
+    }
+
+    private void WriteConcurrencyHeaders(string? etag, string? version)
+    {
+        if (!string.IsNullOrWhiteSpace(etag))
+        {
+            Response.Headers.ETag = etag;
+        }
+
+        if (!string.IsNullOrWhiteSpace(version))
+        {
+            Response.Headers["X-Form-Schema-Version"] = version;
+        }
     }
 }

@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using React_Receiver.Application.Concurrency;
 using React_Receiver.Domain.Tenants;
 using React_Receiver.Models;
 using React_Receiver.Services;
@@ -7,41 +8,59 @@ namespace React_Receiver.Application.TenantConfig;
 
 public interface ITenantConfigSeedStore
 {
-    TenantBootstrapResponse? Get(string tenantId);
-    UpsertResult<TenantBootstrapResponse> Upsert(TenantConfiguration configuration);
+    ResourceEnvelope<TenantBootstrapResponse>? Get(string tenantId);
+    UpsertResult<TenantBootstrapResponse> Upsert(TenantConfiguration configuration, string? expectedETag);
     IReadOnlyCollection<KeyValuePair<string, TenantConfiguration>> GetAll();
 }
 
 public sealed class TenantConfigSeedStore : ITenantConfigSeedStore
 {
-    private readonly ConcurrentDictionary<string, TenantConfiguration> _tenantConfigs;
+    private sealed record SeedEntry(string ETag, TenantConfiguration Resource);
+
+    private readonly ConcurrentDictionary<string, SeedEntry> _tenantConfigs;
+    private readonly object _gate = new();
 
     public TenantConfigSeedStore(IBootstrapDataProvider bootstrapDataProvider)
     {
-        _tenantConfigs = new ConcurrentDictionary<string, TenantConfiguration>(
+        _tenantConfigs = new ConcurrentDictionary<string, SeedEntry>(
             bootstrapDataProvider
                 .GetTenantConfigs()
                 .Select(item => Map(item.Payload))
-                .Select(item => new KeyValuePair<string, TenantConfiguration>(item.TenantId, item)),
+                .Select(item => new KeyValuePair<string, SeedEntry>(
+                    item.TenantId,
+                    new SeedEntry(CreateETag(item.TenantId), item))),
             StringComparer.OrdinalIgnoreCase);
     }
 
-    public TenantBootstrapResponse? Get(string tenantId)
+    public ResourceEnvelope<TenantBootstrapResponse>? Get(string tenantId)
     {
-        return _tenantConfigs.TryGetValue(tenantId, out var config) ? Map(config) : null;
+        return _tenantConfigs.TryGetValue(tenantId, out var config)
+            ? new ResourceEnvelope<TenantBootstrapResponse>(Map(config.Resource), config.ETag)
+            : null;
     }
 
-    public UpsertResult<TenantBootstrapResponse> Upsert(TenantConfiguration configuration)
+    public UpsertResult<TenantBootstrapResponse> Upsert(TenantConfiguration configuration, string? expectedETag)
     {
-        var created = !_tenantConfigs.ContainsKey(configuration.TenantId);
-        _tenantConfigs[configuration.TenantId] = configuration;
-        return new UpsertResult<TenantBootstrapResponse>(Map(configuration), created);
+        lock (_gate)
+        {
+            _tenantConfigs.TryGetValue(configuration.TenantId, out var existing);
+            OptimisticConcurrency.EnsureSatisfied(expectedETag, existing?.ETag, $"tenant config '{configuration.TenantId}'");
+
+            var created = existing is null;
+            var entry = new SeedEntry(CreateETag(configuration.TenantId), configuration);
+            _tenantConfigs[configuration.TenantId] = entry;
+            return new UpsertResult<TenantBootstrapResponse>(Map(configuration), created, ETag: entry.ETag);
+        }
     }
 
     public IReadOnlyCollection<KeyValuePair<string, TenantConfiguration>> GetAll()
     {
-        return _tenantConfigs.ToArray();
+        return _tenantConfigs
+            .Select(item => new KeyValuePair<string, TenantConfiguration>(item.Key, item.Value.Resource))
+            .ToArray();
     }
+
+    private static string CreateETag(string tenantId) => $"\"{tenantId}-{DateTime.UtcNow:yyyyMMddHHmmssfff}\"";
 
     private static TenantConfiguration Map(TenantBootstrapResponse response)
     {

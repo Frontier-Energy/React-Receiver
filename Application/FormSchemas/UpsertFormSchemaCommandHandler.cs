@@ -14,6 +14,6 @@ public sealed class UpsertFormSchemaCommandHandler : IRequestHandler<UpsertFormS
 
     public Task<UpsertResult<FormSchemaResponse>> Handle(UpsertFormSchemaCommand request, CancellationToken cancellationToken)
     {
-        return _formSchemaApplicationService.UpsertAsync(request.FormType, request.Request, cancellationToken);
+        return _formSchemaApplicationService.UpsertAsync(request.FormType, request.Request, request.ExpectedETag, cancellationToken);
     }
 }

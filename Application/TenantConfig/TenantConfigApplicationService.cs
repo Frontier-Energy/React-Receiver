@@ -17,7 +17,7 @@ public sealed class TenantConfigApplicationService : ITenantConfigApplicationSer
         _seedStore = seedStore;
     }
 
-    public async Task<TenantBootstrapResponse?> GetAsync(string? tenantId, CancellationToken cancellationToken)
+    public async Task<ResourceEnvelope<TenantBootstrapResponse>?> GetAsync(string? tenantId, CancellationToken cancellationToken)
     {
         var normalizedTenantId = TenantConfiguration.NormalizeTenantId(tenantId);
 
@@ -27,24 +27,29 @@ public sealed class TenantConfigApplicationService : ITenantConfigApplicationSer
         }
 
         var configuration = await _repository.GetAsync(normalizedTenantId, cancellationToken);
-        return configuration is null ? null : Map(configuration);
+        return configuration is null
+            ? null
+            : new ResourceEnvelope<TenantBootstrapResponse>(
+                Map(configuration.Resource),
+                configuration.ETag,
+                configuration.Version);
     }
 
     public async Task<UpsertResult<TenantBootstrapResponse>> UpsertAsync(
         string tenantId,
         TenantBootstrapResponse tenantConfig,
+        string? expectedETag,
         CancellationToken cancellationToken)
     {
         var normalized = TenantConfiguration.Normalize(Map(tenantConfig with { TenantId = tenantId }));
 
         if (!_repository.IsConfigured)
         {
-            return _seedStore.Upsert(normalized);
+            return _seedStore.Upsert(normalized, expectedETag);
         }
 
-        var createdInRepository = !await _repository.ExistsAsync(normalized.TenantId, cancellationToken);
-        var saved = await _repository.UpsertAsync(normalized, cancellationToken);
-        return new UpsertResult<TenantBootstrapResponse>(Map(saved), createdInRepository);
+        var saved = await _repository.UpsertAsync(normalized, expectedETag, cancellationToken);
+        return new UpsertResult<TenantBootstrapResponse>(Map(saved.Resource), saved.Created, saved.Version, saved.ETag);
     }
 
     public async Task ImportSeedDataAsync(bool overwriteExisting, CancellationToken cancellationToken)
@@ -61,7 +66,7 @@ public sealed class TenantConfigApplicationService : ITenantConfigApplicationSer
                 continue;
             }
 
-            await _repository.UpsertAsync(tenantConfig.Value, cancellationToken);
+            await _repository.UpsertAsync(tenantConfig.Value, null, cancellationToken);
         }
     }
 

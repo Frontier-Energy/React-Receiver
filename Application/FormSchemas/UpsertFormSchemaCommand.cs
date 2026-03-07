@@ -4,5 +4,5 @@ using React_Receiver.Models;
 
 namespace React_Receiver.Application.FormSchemas;
 
-public sealed record UpsertFormSchemaCommand(string FormType, FormSchemaResponse Request)
+public sealed record UpsertFormSchemaCommand(string FormType, FormSchemaResponse Request, string? ExpectedETag)
     : IRequest<UpsertResult<FormSchemaResponse>>, ITransactionalRequest;

@@ -17,6 +17,8 @@ public sealed class FormSchemaEntity : ITableEntity
     public string FormName { get; set; } = string.Empty;
     public string SectionsJson { get; set; } = EmptySectionsJson;
     public string SchemaBlobName { get; set; } = string.Empty;
+    public string Version { get; set; } = string.Empty;
+    public string PublicEtag { get; set; } = string.Empty;
 
     public FormSchemaResponse ToResponse()
     {
@@ -30,7 +32,19 @@ public sealed class FormSchemaEntity : ITableEntity
 
     public bool HasSchemaBlob => !string.IsNullOrWhiteSpace(SchemaBlobName);
 
-    public static FormSchemaEntity FromResponse(string formType, string schemaBlobName)
+    public FormSchemaCatalogItemResponse ToCatalogItem()
+    {
+        return new FormSchemaCatalogItemResponse(
+            RowKey,
+            Version,
+            PublicEtag);
+    }
+
+    public static FormSchemaEntity FromResponse(
+        string formType,
+        string schemaBlobName,
+        string? version = null,
+        string? publicEtag = null)
     {
         return new FormSchemaEntity
         {
@@ -38,7 +52,9 @@ public sealed class FormSchemaEntity : ITableEntity
             RowKey = formType,
             FormName = string.Empty,
             SectionsJson = EmptySectionsJson,
-            SchemaBlobName = schemaBlobName
+            SchemaBlobName = schemaBlobName,
+            Version = version ?? string.Empty,
+            PublicEtag = publicEtag ?? string.Empty
         };
     }
 }

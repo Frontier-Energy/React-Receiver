@@ -1,5 +1,6 @@
 using Azure;
 using Azure.Data.Tables;
+using React_Receiver.Application.Concurrency;
 using React_Receiver.Models;
 using React_Receiver.Observability;
 using React_Receiver.Services;
@@ -26,7 +27,7 @@ public sealed class AzureTableTranslationRepository : ITranslationRepository
         !string.IsNullOrWhiteSpace(_tableOptions.ConnectionString) &&
         !string.IsNullOrWhiteSpace(_tableOptions.TranslationsTableName);
 
-    public async Task<TranslationsResponse?> GetAsync(string language, CancellationToken cancellationToken)
+    public async Task<ResourceEnvelope<TranslationsResponse>?> GetAsync(string language, CancellationToken cancellationToken)
     {
         var tableClient = _tableServiceClient.GetTableClient(_tableOptions.TranslationsTableName);
         try
@@ -41,7 +42,9 @@ public sealed class AzureTableTranslationRepository : ITranslationRepository
                     cancellationToken: ct),
                 cancellationToken);
             return response.HasValue
-                ? response.Value!.ToResponse()
+                ? new ResourceEnvelope<TranslationsResponse>(
+                    response.Value!.ToResponse(),
+                    response.Value.ETag.ToString())
                 : null;
         }
         catch (RequestFailedException ex) when (ex.Status == 404)
@@ -75,19 +78,53 @@ public sealed class AzureTableTranslationRepository : ITranslationRepository
     public async Task<UpsertResult<TranslationsResponse>> UpsertAsync(
         string language,
         TranslationsResponse request,
+        string? expectedETag,
         CancellationToken cancellationToken)
     {
         var tableClient = _tableServiceClient.GetTableClient(_tableOptions.TranslationsTableName);
-        var created = !await ExistsAsync(language, cancellationToken);
-        await _storageObserver.ExecuteAsync(
+        var existing = await GetEntityAsync(tableClient, language, cancellationToken);
+        OptimisticConcurrency.EnsureSatisfied(expectedETag, existing?.ETag.ToString(), $"translations '{language}'");
+
+        var entity = TranslationEntity.FromResponse(language, request);
+        if (existing is null)
+        {
+            await _storageObserver.ExecuteAsync(
+                "table",
+                _tableOptions.TranslationsTableName,
+                "AddTranslations",
+                ct => tableClient.AddEntityAsync(entity, ct),
+                cancellationToken);
+        }
+        else
+        {
+            await _storageObserver.ExecuteAsync(
+                "table",
+                _tableOptions.TranslationsTableName,
+                "UpdateTranslations",
+                ct => tableClient.UpdateEntityAsync(entity, existing.ETag, TableUpdateMode.Replace, ct),
+                cancellationToken);
+        }
+
+        var saved = await GetEntityAsync(tableClient, language, cancellationToken)
+            ?? throw new InvalidOperationException($"Translations '{language}' could not be reloaded after save.");
+        return new UpsertResult<TranslationsResponse>(request, existing is null, ETag: saved.ETag.ToString());
+    }
+
+    private async Task<TranslationEntity?> GetEntityAsync(
+        TableClient tableClient,
+        string language,
+        CancellationToken cancellationToken)
+    {
+        var response = await _storageObserver.ExecuteAsync(
             "table",
             _tableOptions.TranslationsTableName,
-            "UpsertTranslations",
-            ct => tableClient.UpsertEntityAsync(
-                TranslationEntity.FromResponse(language, request),
-                TableUpdateMode.Replace,
-                ct),
+            "GetTranslationsForWrite",
+            ct => tableClient.GetEntityIfExistsAsync<TranslationEntity>(
+                TranslationEntity.PartitionKeyValue,
+                language,
+                cancellationToken: ct),
             cancellationToken);
-        return new UpsertResult<TranslationsResponse>(request, created);
+
+        return response.HasValue ? response.Value : null;
     }
 }

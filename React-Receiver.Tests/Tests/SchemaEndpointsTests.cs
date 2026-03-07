@@ -62,6 +62,7 @@ public sealed class SchemaEndpointsTests
         var response = Assert.IsType<FormSchemaResponse>(ok.Value);
         Assert.False(string.IsNullOrWhiteSpace(response.FormName));
         Assert.NotEmpty(response.Sections);
+        Assert.Equal("\"hvac-v1\"", controller.Response.Headers.ETag.ToString());
     }
 
     [Fact]
@@ -127,6 +128,7 @@ public sealed class SchemaEndpointsTests
         Assert.Equal("Espanol", response.LanguageName);
         var app = Assert.IsType<AppTranslations>(response.App);
         Assert.Equal("QControl", app.Brand);
+        Assert.Equal("\"es-v1\"", controller.Response.Headers.ETag.ToString());
     }
 
     [Fact]
@@ -162,6 +164,7 @@ public sealed class SchemaEndpointsTests
         var app = Assert.IsType<AppTranslations>(response.App);
         Assert.Equal("Updated Title", app.Title);
         Assert.Equal("/translations/en", controller.Response.Headers.ContentLocation.ToString());
+        Assert.Equal("\"en-v2\"", controller.Response.Headers.ETag.ToString());
     }
 
     [Fact]
@@ -187,6 +190,7 @@ public sealed class SchemaEndpointsTests
         Assert.Equal("fr", created.RouteValues?["language"]);
         var response = Assert.IsType<TranslationsResponse>(created.Value);
         Assert.Equal("French", response.LanguageName);
+        Assert.Equal("\"fr-v1\"", controller.Response.Headers.ETag.ToString());
     }
 
     private static UsersController CreateUsersController()
@@ -224,21 +228,24 @@ public sealed class SchemaEndpointsTests
                         new FormSchemaCatalogItemResponse("hvac", "2026-01-01", "\"hvac-v1\"")
                     ])),
                 GetFormSchemaQuery getQuery when string.Equals(getQuery.FormType, "hvac", StringComparison.OrdinalIgnoreCase)
-                    => Task.FromResult<object?>(new FormSchemaResponse(
-                        FormName: "HVAC Inspection",
-                        Sections:
-                        [
-                            new FormSectionResponse(
-                                Title: "Equipment",
-                                Fields:
-                                [
-                                    new FormFieldResponse(
-                                        Id: "unitLocation",
-                                        Label: "Unit Location",
-                                        Type: "text",
-                                        Required: true)
-                                ])
-                        ])),
+                    => Task.FromResult<object?>(new ResourceEnvelope<FormSchemaResponse>(
+                        new FormSchemaResponse(
+                            FormName: "HVAC Inspection",
+                            Sections:
+                            [
+                                new FormSectionResponse(
+                                    Title: "Equipment",
+                                    Fields:
+                                    [
+                                        new FormFieldResponse(
+                                            Id: "unitLocation",
+                                            Label: "Unit Location",
+                                            Type: "text",
+                                            Required: true)
+                                    ])
+                            ]),
+                        "\"hvac-v1\"",
+                        "2026-01-01")),
                 GetFormSchemaQuery => Task.FromResult<object?>(null),
                 UpsertFormSchemaCommand upsert when string.Equals(upsert.FormType, "custom-form", StringComparison.OrdinalIgnoreCase)
                     => Task.FromResult<object?>(new UpsertResult<FormSchemaResponse>(
@@ -272,19 +279,21 @@ public sealed class SchemaEndpointsTests
             return request switch
             {
                 GetTranslationsQuery getQuery when string.Equals(getQuery.Language, "es", StringComparison.OrdinalIgnoreCase)
-                    => Task.FromResult<object?>(new TranslationsResponse
-                    {
-                        LanguageName = "Espanol",
-                        App = new AppTranslations
+                    => Task.FromResult<object?>(new ResourceEnvelope<TranslationsResponse>(
+                        new TranslationsResponse
                         {
-                            Brand = "QControl"
-                        }
-                    }),
+                            LanguageName = "Espanol",
+                            App = new AppTranslations
+                            {
+                                Brand = "QControl"
+                            }
+                        },
+                        "\"es-v1\"")),
                 GetTranslationsQuery => Task.FromResult<object?>(null),
                 UpsertTranslationsCommand upsert when string.Equals(upsert.Language, "fr", StringComparison.OrdinalIgnoreCase)
-                    => Task.FromResult<object?>(new UpsertResult<TranslationsResponse>(upsert.Request, true)),
+                    => Task.FromResult<object?>(new UpsertResult<TranslationsResponse>(upsert.Request, true, ETag: "\"fr-v1\"")),
                 UpsertTranslationsCommand upsert
-                    => Task.FromResult<object?>(new UpsertResult<TranslationsResponse>(upsert.Request, false)),
+                    => Task.FromResult<object?>(new UpsertResult<TranslationsResponse>(upsert.Request, false, ETag: "\"en-v2\"")),
                 _ => throw new NotSupportedException()
             };
         }), NullLogger<TranslationsController>.Instance)

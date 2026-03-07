@@ -14,6 +14,6 @@ public sealed class UpsertTranslationsCommandHandler : IRequestHandler<UpsertTra
 
     public Task<UpsertResult<TranslationsResponse>> Handle(UpsertTranslationsCommand request, CancellationToken cancellationToken)
     {
-        return _translationApplicationService.UpsertAsync(request.Language, request.Request, cancellationToken);
+        return _translationApplicationService.UpsertAsync(request.Language, request.Request, request.ExpectedETag, cancellationToken);
     }
 }

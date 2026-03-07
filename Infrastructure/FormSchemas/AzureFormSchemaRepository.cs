@@ -2,6 +2,7 @@ using Azure;
 using Azure.Data.Tables;
 using Azure.Storage.Blobs;
 using Microsoft.Extensions.Logging;
+using React_Receiver.Application.Concurrency;
 using React_Receiver.Application.FormSchemas;
 using React_Receiver.Models;
 using React_Receiver.Observability;
@@ -41,19 +42,19 @@ public sealed class AzureFormSchemaRepository : IFormSchemaRepository
 
     public async Task<FormSchemaCatalogResponse> ListAsync(CancellationToken cancellationToken)
     {
-        var tableClient = _tableServiceClient.GetTableClient(_tableOptions.FormSchemaCatalogTableName);
+        var tableClient = _tableServiceClient.GetTableClient(_tableOptions.FormSchemasTableName);
         return await _storageObserver.ExecuteAsync(
             "table",
-            _tableOptions.FormSchemaCatalogTableName,
+            _tableOptions.FormSchemasTableName,
             "ListFormSchemas",
             async ct =>
             {
                 var items = new List<FormSchemaCatalogItemResponse>();
-                await foreach (var entity in tableClient.QueryAsync<FormSchemaCatalogItemEntity>(
-                                   e => e.PartitionKey == FormSchemaCatalogItemEntity.PartitionKeyValue,
+                await foreach (var entity in tableClient.QueryAsync<FormSchemaEntity>(
+                                   e => e.PartitionKey == FormSchemaEntity.PartitionKeyValue,
                                    cancellationToken: ct))
                 {
-                    items.Add(entity.ToResponse());
+                    items.Add(entity.ToCatalogItem());
                 }
 
                 return new FormSchemaCatalogResponse(items.ToArray());
@@ -61,78 +62,62 @@ public sealed class AzureFormSchemaRepository : IFormSchemaRepository
             cancellationToken);
     }
 
-    public async Task<FormSchemaResponse?> GetAsync(string formType, CancellationToken cancellationToken)
+    public async Task<ResourceEnvelope<FormSchemaResponse>?> GetAsync(string formType, CancellationToken cancellationToken)
     {
-        var tableClient = _tableServiceClient.GetTableClient(_tableOptions.FormSchemasTableName);
-        try
+        var state = await TryGetStateAsync(formType, cancellationToken);
+        if (state is null)
         {
-            var response = await _storageObserver.ExecuteAsync(
-                "table",
-                _tableOptions.FormSchemasTableName,
-                "GetFormSchema",
-                ct => tableClient.GetEntityAsync<FormSchemaEntity>(
-                    FormSchemaEntity.PartitionKeyValue,
-                    formType,
-                    cancellationToken: ct),
-                cancellationToken);
-            return await ReadSchemaAsync(response.Value, cancellationToken);
-        }
-        catch (RequestFailedException ex) when (ex.Status == 404)
-        {
-            _logger.LogInformation("Form schema metadata was not found for form type '{FormType}'.", formType);
             return null;
         }
+
+        var resource = await ReadSchemaAsync(state.SchemaEntity, cancellationToken);
+        return new ResourceEnvelope<FormSchemaResponse>(resource, state.SchemaEntity.PublicEtag, state.SchemaEntity.Version);
     }
 
     public async Task<bool> ExistsAsync(string formType, CancellationToken cancellationToken)
     {
-        var tableClient = _tableServiceClient.GetTableClient(_tableOptions.FormSchemasTableName);
-        try
-        {
-            await _storageObserver.ExecuteAsync(
-                "table",
-                _tableOptions.FormSchemasTableName,
-                "FormSchemaExists",
-                ct => tableClient.GetEntityAsync<FormSchemaEntity>(
-                    FormSchemaEntity.PartitionKeyValue,
-                    formType,
-                    cancellationToken: ct),
-                cancellationToken);
-            return true;
-        }
-        catch (RequestFailedException ex) when (ex.Status == 404)
-        {
-            return false;
-        }
+        return await TryGetStateAsync(formType, cancellationToken) is not null;
     }
 
     public async Task<UpsertResult<FormSchemaResponse>> UpsertAsync(
         string formType,
         FormSchemaResponse request,
+        string? expectedETag,
         CancellationToken cancellationToken)
     {
+        EnsureBlobStorageConfigured();
+
+        var existing = await TryGetStateAsync(formType, cancellationToken);
+        OptimisticConcurrency.EnsureSatisfied(expectedETag, existing?.SchemaEntity.PublicEtag, $"form schema '{formType}'");
+
         var now = DateTime.UtcNow;
-        var created = !await ExistsAsync(formType, cancellationToken);
-        var catalogItem = new FormSchemaCatalogItemResponse(
-            formType,
-            now.ToString("yyyy-MM-dd"),
-            $"\"{formType}-{now:yyyyMMddHHmmssfff}\"");
+        var version = now.ToString("yyyy-MM-dd");
+        var publicEtag = $"\"{formType}-{now:yyyyMMddHHmmssfff}\"";
+        var schemaBlobName = await UploadSchemaAsync(formType, publicEtag, request, cancellationToken);
+        var schemaEntity = FormSchemaEntity.FromResponse(formType, schemaBlobName, version, publicEtag);
 
         var schemasTableClient = _tableServiceClient.GetTableClient(_tableOptions.FormSchemasTableName);
-        await UpsertSchemaEntityAsync(schemasTableClient, formType, request, cancellationToken);
+        if (existing is null)
+        {
+            await _storageObserver.ExecuteAsync(
+                "table",
+                _tableOptions.FormSchemasTableName,
+                "AddFormSchemaMetadata",
+                ct => schemasTableClient.AddEntityAsync(schemaEntity, ct),
+                cancellationToken);
+        }
+        else
+        {
+            await _storageObserver.ExecuteAsync(
+                "table",
+                _tableOptions.FormSchemasTableName,
+                "UpdateFormSchemaMetadata",
+                ct => schemasTableClient.UpdateEntityAsync(schemaEntity, existing.SchemaEntity.ETag, TableUpdateMode.Replace, ct),
+                cancellationToken);
+        }
 
-        var catalogTableClient = _tableServiceClient.GetTableClient(_tableOptions.FormSchemaCatalogTableName);
-        await _storageObserver.ExecuteAsync(
-            "table",
-            _tableOptions.FormSchemaCatalogTableName,
-            "UpsertFormSchemaCatalog",
-            ct => catalogTableClient.UpsertEntityAsync(
-                FormSchemaCatalogItemEntity.FromResponse(catalogItem),
-                TableUpdateMode.Replace,
-                ct),
-            cancellationToken);
-
-        return new UpsertResult<FormSchemaResponse>(request, created, catalogItem.Version, catalogItem.Etag);
+        await UpsertCatalogCopyAsync(schemaEntity, cancellationToken);
+        return new UpsertResult<FormSchemaResponse>(request, existing is null, version, publicEtag);
     }
 
     public async Task<FormSchemaResponse> ReadSchemaAsync(
@@ -178,20 +163,38 @@ public sealed class AzureFormSchemaRepository : IFormSchemaRepository
             $"Form schema '{entity.RowKey}' metadata exists, but does not contain inline content or a blob reference.");
     }
 
-    private async Task UpsertSchemaEntityAsync(
-        TableClient tableClient,
-        string formType,
-        FormSchemaResponse schema,
-        CancellationToken cancellationToken)
+    private async Task<SchemaState?> TryGetStateAsync(string formType, CancellationToken cancellationToken)
     {
-        EnsureBlobStorageConfigured();
-        var schemaBlobName = await UploadSchemaAsync(formType, schema, cancellationToken);
+        var tableClient = _tableServiceClient.GetTableClient(_tableOptions.FormSchemasTableName);
+        try
+        {
+            var response = await _storageObserver.ExecuteAsync(
+                "table",
+                _tableOptions.FormSchemasTableName,
+                "GetFormSchema",
+                ct => tableClient.GetEntityAsync<FormSchemaEntity>(
+                    FormSchemaEntity.PartitionKeyValue,
+                    formType,
+                    cancellationToken: ct),
+                cancellationToken);
+            return new SchemaState(response.Value);
+        }
+        catch (RequestFailedException ex) when (ex.Status == 404)
+        {
+            _logger.LogInformation("Form schema metadata was not found for form type '{FormType}'.", formType);
+            return null;
+        }
+    }
+
+    private async Task UpsertCatalogCopyAsync(FormSchemaEntity schemaEntity, CancellationToken cancellationToken)
+    {
+        var catalogTableClient = _tableServiceClient.GetTableClient(_tableOptions.FormSchemaCatalogTableName);
         await _storageObserver.ExecuteAsync(
             "table",
-            _tableOptions.FormSchemasTableName,
-            "UpsertFormSchemaMetadata",
-            ct => tableClient.UpsertEntityAsync(
-                FormSchemaEntity.FromResponse(formType, schemaBlobName),
+            _tableOptions.FormSchemaCatalogTableName,
+            "UpsertFormSchemaCatalog",
+            ct => catalogTableClient.UpsertEntityAsync(
+                FormSchemaCatalogItemEntity.FromResponse(schemaEntity.ToCatalogItem()),
                 TableUpdateMode.Replace,
                 ct),
             cancellationToken);
@@ -199,17 +202,18 @@ public sealed class AzureFormSchemaRepository : IFormSchemaRepository
 
     private async Task<string> UploadSchemaAsync(
         string formType,
+        string publicEtag,
         FormSchemaResponse schema,
         CancellationToken cancellationToken)
     {
         var containerClient = _blobServiceClient.GetBlobContainerClient(_blobOptions.ContainerName);
-        var blobName = $"form-schemas/{formType}.json";
+        var blobName = $"form-schemas/{formType}/{SanitizeEtag(publicEtag)}.json";
         var blobClient = containerClient.GetBlobClient(blobName);
         await _storageObserver.ExecuteAsync(
             "blob",
             _blobOptions.ContainerName,
             "UploadFormSchema",
-            ct => blobClient.UploadAsync(BinaryData.FromObjectAsJson(schema), overwrite: true, ct),
+            ct => blobClient.UploadAsync(BinaryData.FromObjectAsJson(schema), overwrite: false, ct),
             cancellationToken);
         return blobName;
     }
@@ -266,4 +270,11 @@ public sealed class AzureFormSchemaRepository : IFormSchemaRepository
                 "Blob storage configuration is required for persisted form schema payloads.");
         }
     }
+
+    private static string SanitizeEtag(string publicEtag)
+    {
+        return publicEtag.Replace("\"", string.Empty, StringComparison.Ordinal);
+    }
+
+    private sealed record SchemaState(FormSchemaEntity SchemaEntity);
 }

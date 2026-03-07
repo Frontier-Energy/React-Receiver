@@ -1,5 +1,6 @@
 using Azure;
 using Azure.Data.Tables;
+using React_Receiver.Application.Concurrency;
 using React_Receiver.Domain.Tenants;
 using React_Receiver.Models;
 using React_Receiver.Observability;
@@ -27,7 +28,7 @@ public sealed class AzureTableTenantConfigRepository : ITenantConfigRepository
         !string.IsNullOrWhiteSpace(_tableOptions.ConnectionString) &&
         !string.IsNullOrWhiteSpace(_tableOptions.TenantConfigTableName);
 
-    public async Task<TenantConfiguration?> GetAsync(string tenantId, CancellationToken cancellationToken)
+    public async Task<ResourceEnvelope<TenantConfiguration>?> GetAsync(string tenantId, CancellationToken cancellationToken)
     {
         var tableClient = _tableServiceClient.GetTableClient(_tableOptions.TenantConfigTableName);
         try
@@ -41,7 +42,9 @@ public sealed class AzureTableTenantConfigRepository : ITenantConfigRepository
                     tenantId,
                     cancellationToken: ct),
                 cancellationToken);
-            return Map(response.Value.ToResponse());
+            return new ResourceEnvelope<TenantConfiguration>(
+                Map(response.Value.ToResponse()),
+                response.Value.ETag.ToString());
         }
         catch (RequestFailedException ex) when (ex.Status == 404)
         {
@@ -71,21 +74,62 @@ public sealed class AzureTableTenantConfigRepository : ITenantConfigRepository
         }
     }
 
-    public async Task<TenantConfiguration> UpsertAsync(
+    public async Task<UpsertResult<TenantConfiguration>> UpsertAsync(
         TenantConfiguration tenantConfiguration,
+        string? expectedETag,
         CancellationToken cancellationToken)
     {
         var tableClient = _tableServiceClient.GetTableClient(_tableOptions.TenantConfigTableName);
-        await _storageObserver.ExecuteAsync(
-            "table",
-            _tableOptions.TenantConfigTableName,
-            "UpsertTenantConfig",
-            ct => tableClient.UpsertEntityAsync(
-                TenantConfigEntity.FromResponse(Map(tenantConfiguration)),
-                TableUpdateMode.Replace,
-                ct),
-            cancellationToken);
-        return tenantConfiguration;
+        var existing = await GetEntityAsync(tableClient, tenantConfiguration.TenantId, cancellationToken);
+        OptimisticConcurrency.EnsureSatisfied(expectedETag, existing?.ETag.ToString(), $"tenant config '{tenantConfiguration.TenantId}'");
+
+        var entity = TenantConfigEntity.FromResponse(Map(tenantConfiguration));
+        if (existing is null)
+        {
+            await _storageObserver.ExecuteAsync(
+                "table",
+                _tableOptions.TenantConfigTableName,
+                "AddTenantConfig",
+                ct => tableClient.AddEntityAsync(entity, ct),
+                cancellationToken);
+        }
+        else
+        {
+            await _storageObserver.ExecuteAsync(
+                "table",
+                _tableOptions.TenantConfigTableName,
+                "UpdateTenantConfig",
+                ct => tableClient.UpdateEntityAsync(entity, existing.ETag, TableUpdateMode.Replace, ct),
+                cancellationToken);
+        }
+
+        var saved = await GetEntityAsync(tableClient, tenantConfiguration.TenantId, cancellationToken)
+            ?? throw new InvalidOperationException($"Tenant config '{tenantConfiguration.TenantId}' could not be reloaded after save.");
+        return new UpsertResult<TenantConfiguration>(tenantConfiguration, existing is null, ETag: saved.ETag.ToString());
+    }
+
+    private async Task<TenantConfigEntity?> GetEntityAsync(
+        TableClient tableClient,
+        string tenantId,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var response = await _storageObserver.ExecuteAsync(
+                "table",
+                _tableOptions.TenantConfigTableName,
+                "GetTenantConfigForWrite",
+                ct => tableClient.GetEntityAsync<TenantConfigEntity>(
+                    TenantConfigEntity.PartitionKeyValue,
+                    tenantId,
+                    cancellationToken: ct),
+                cancellationToken);
+            return response.Value;
+        }
+        catch (RequestFailedException ex) when (ex.Status == 404)
+        {
+            return null;
+        }
     }
 
     private static TenantConfiguration Map(TenantBootstrapResponse response)

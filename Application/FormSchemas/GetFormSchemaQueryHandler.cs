@@ -3,7 +3,7 @@ using React_Receiver.Models;
 
 namespace React_Receiver.Application.FormSchemas;
 
-public sealed class GetFormSchemaQueryHandler : IRequestHandler<GetFormSchemaQuery, FormSchemaResponse?>
+public sealed class GetFormSchemaQueryHandler : IRequestHandler<GetFormSchemaQuery, ResourceEnvelope<FormSchemaResponse>?>
 {
     private readonly IFormSchemaApplicationService _formSchemaApplicationService;
 
@@ -12,7 +12,7 @@ public sealed class GetFormSchemaQueryHandler : IRequestHandler<GetFormSchemaQue
         _formSchemaApplicationService = formSchemaApplicationService;
     }
 
-    public Task<FormSchemaResponse?> Handle(GetFormSchemaQuery request, CancellationToken cancellationToken)
+    public Task<ResourceEnvelope<FormSchemaResponse>?> Handle(GetFormSchemaQuery request, CancellationToken cancellationToken)
     {
         return _formSchemaApplicationService.GetAsync(request.FormType, cancellationToken);
     }

@@ -22,7 +22,13 @@ public sealed class TenantConfigController : ControllerBase
     public async Task<ActionResult<TenantBootstrapResponse>> GetTenantConfig([FromQuery] TenantConfigQueryRequest request)
     {
         var tenantConfig = await _sender.Send(new GetTenantConfigQuery(request.TenantId), HttpContext.RequestAborted);
-        return tenantConfig is null ? NotFound() : Ok(tenantConfig);
+        if (tenantConfig is null)
+        {
+            return NotFound();
+        }
+
+        WriteConcurrencyHeaders(tenantConfig.ETag);
+        return Ok(tenantConfig.Resource);
     }
 
     [HttpPut("{tenantId}")]
@@ -34,8 +40,11 @@ public sealed class TenantConfigController : ControllerBase
             "Processing tenant config upsert for {TenantId}",
             routeRequest.TenantId);
         var response = await _sender.Send(
-            new UpsertTenantConfigCommand(request with { TenantId = routeRequest.TenantId }),
+            new UpsertTenantConfigCommand(
+                request with { TenantId = routeRequest.TenantId },
+                Request.Headers.IfMatch.ToString()),
             HttpContext.RequestAborted);
+        WriteConcurrencyHeaders(response.ETag);
         if (response.Created)
         {
             _logger.LogInformation(
@@ -53,5 +62,13 @@ public sealed class TenantConfigController : ControllerBase
             routeRequest.TenantId);
 
         return Ok(response.Resource);
+    }
+
+    private void WriteConcurrencyHeaders(string? etag)
+    {
+        if (!string.IsNullOrWhiteSpace(etag))
+        {
+            Response.Headers.ETag = etag;
+        }
     }
 }

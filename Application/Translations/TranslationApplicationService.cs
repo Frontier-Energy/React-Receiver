@@ -16,7 +16,7 @@ public sealed class TranslationApplicationService : ITranslationApplicationServi
         _seedStore = seedStore;
     }
 
-    public Task<TranslationsResponse?> GetAsync(string language, CancellationToken cancellationToken)
+    public Task<ResourceEnvelope<TranslationsResponse>?> GetAsync(string language, CancellationToken cancellationToken)
     {
         if (!_repository.IsConfigured)
         {
@@ -29,15 +29,16 @@ public sealed class TranslationApplicationService : ITranslationApplicationServi
     public async Task<UpsertResult<TranslationsResponse>> UpsertAsync(
         string language,
         TranslationsResponse request,
+        string? expectedETag,
         CancellationToken cancellationToken)
     {
         if (!_repository.IsConfigured)
         {
-            return _seedStore.Upsert(language, request);
+            return _seedStore.Upsert(language, request, expectedETag);
         }
 
-        var response = await _repository.UpsertAsync(language, request, cancellationToken);
-        _seedStore.Upsert(language, request);
+        var response = await _repository.UpsertAsync(language, request, expectedETag, cancellationToken);
+        _seedStore.Store(language, request, response.ETag);
         return response;
     }
 
@@ -55,7 +56,7 @@ public sealed class TranslationApplicationService : ITranslationApplicationServi
                 continue;
             }
 
-            await _repository.UpsertAsync(translation.Key, translation.Value, cancellationToken);
+            await _repository.UpsertAsync(translation.Key, translation.Value, null, cancellationToken);
         }
     }
 }

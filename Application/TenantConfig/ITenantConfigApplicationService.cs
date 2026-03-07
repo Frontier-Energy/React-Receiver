@@ -4,7 +4,7 @@ namespace React_Receiver.Application.TenantConfig;
 
 public interface ITenantConfigApplicationService
 {
-    Task<TenantBootstrapResponse?> GetAsync(string? tenantId, CancellationToken cancellationToken);
-    Task<UpsertResult<TenantBootstrapResponse>> UpsertAsync(string tenantId, TenantBootstrapResponse tenantConfig, CancellationToken cancellationToken);
+    Task<ResourceEnvelope<TenantBootstrapResponse>?> GetAsync(string? tenantId, CancellationToken cancellationToken);
+    Task<UpsertResult<TenantBootstrapResponse>> UpsertAsync(string tenantId, TenantBootstrapResponse tenantConfig, string? expectedETag, CancellationToken cancellationToken);
     Task ImportSeedDataAsync(bool overwriteExisting, CancellationToken cancellationToken);
 }

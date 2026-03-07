@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using React_Receiver.Application.Concurrency;
 using React_Receiver.Application.FormSchemas;
 using React_Receiver.Mediation.Exceptions;
 using Xunit;
@@ -41,6 +42,40 @@ public sealed class ApiExceptionHandlerTests
         Assert.True(handled);
         Assert.Equal(StatusCodes.Status500InternalServerError, httpContext.Response.StatusCode);
         Assert.Equal("Schema content unavailable", problemDetailsService.LastProblem?.Title);
+    }
+
+    [Fact]
+    public async Task TryHandleAsync_ReturnsPreconditionRequiredProblem_ForMissingIfMatch()
+    {
+        var problemDetailsService = new CapturingProblemDetailsService();
+        var handler = new ApiExceptionHandler(problemDetailsService);
+        var httpContext = new DefaultHttpContext();
+
+        var handled = await handler.TryHandleAsync(
+            httpContext,
+            new PreconditionRequiredException("Updates require If-Match."),
+            CancellationToken.None);
+
+        Assert.True(handled);
+        Assert.Equal(StatusCodes.Status428PreconditionRequired, httpContext.Response.StatusCode);
+        Assert.Equal("Missing If-Match header", problemDetailsService.LastProblem?.Title);
+    }
+
+    [Fact]
+    public async Task TryHandleAsync_ReturnsPreconditionFailedProblem_ForStaleIfMatch()
+    {
+        var problemDetailsService = new CapturingProblemDetailsService();
+        var handler = new ApiExceptionHandler(problemDetailsService);
+        var httpContext = new DefaultHttpContext();
+
+        var handled = await handler.TryHandleAsync(
+            httpContext,
+            new ConcurrencyConflictException("If-Match did not match."),
+            CancellationToken.None);
+
+        Assert.True(handled);
+        Assert.Equal(StatusCodes.Status412PreconditionFailed, httpContext.Response.StatusCode);
+        Assert.Equal("If-Match precondition failed", problemDetailsService.LastProblem?.Title);
     }
 
     private sealed class CapturingProblemDetailsService : IProblemDetailsService

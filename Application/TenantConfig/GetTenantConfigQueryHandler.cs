@@ -3,7 +3,7 @@ using React_Receiver.Models;
 
 namespace React_Receiver.Application.TenantConfig;
 
-public sealed class GetTenantConfigQueryHandler : IRequestHandler<GetTenantConfigQuery, TenantBootstrapResponse?>
+public sealed class GetTenantConfigQueryHandler : IRequestHandler<GetTenantConfigQuery, ResourceEnvelope<TenantBootstrapResponse>?>
 {
     private readonly ITenantConfigApplicationService _tenantConfigApplicationService;
 
@@ -12,7 +12,7 @@ public sealed class GetTenantConfigQueryHandler : IRequestHandler<GetTenantConfi
         _tenantConfigApplicationService = tenantConfigApplicationService;
     }
 
-    public Task<TenantBootstrapResponse?> Handle(GetTenantConfigQuery request, CancellationToken cancellationToken)
+    public Task<ResourceEnvelope<TenantBootstrapResponse>?> Handle(GetTenantConfigQuery request, CancellationToken cancellationToken)
     {
         return _tenantConfigApplicationService.GetAsync(request.TenantId, cancellationToken);
     }

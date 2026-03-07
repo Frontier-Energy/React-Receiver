@@ -17,11 +17,12 @@ public sealed class TenantConfigHandlerTests
         var result = await handler.GetAsync(null, CancellationToken.None);
 
         Assert.NotNull(result);
-        Assert.Equal("qhvac", result.TenantId);
-        Assert.Equal("QHVAC", result.DisplayName);
-        Assert.Equal("harbor", result.UiDefaults.Theme);
-        Assert.Equal(["electrical", "electrical-sf", "hvac"], result.EnabledForms);
-        Assert.True(result.LoginRequired);
+        Assert.Equal("qhvac", result.Resource.TenantId);
+        Assert.Equal("QHVAC", result.Resource.DisplayName);
+        Assert.Equal("harbor", result.Resource.UiDefaults.Theme);
+        Assert.Equal(["electrical", "electrical-sf", "hvac"], result.Resource.EnabledForms);
+        Assert.True(result.Resource.LoginRequired);
+        Assert.False(string.IsNullOrWhiteSpace(result.ETag));
     }
 
     [Fact]
@@ -41,7 +42,7 @@ public sealed class TenantConfigHandlerTests
             EnabledForms: ["hvac"],
             LoginRequired: false);
 
-        var result = await handler.UpsertAsync(" custom-tenant ", payload, CancellationToken.None);
+        var result = await handler.UpsertAsync(" custom-tenant ", payload, null, CancellationToken.None);
 
         Assert.True(result.Created);
         Assert.Equal("custom-tenant", result.Resource.TenantId);
@@ -72,17 +73,17 @@ public sealed class TenantConfigHandlerTests
     {
         public bool IsConfigured => false;
 
-        public Task<TenantConfiguration?> GetAsync(string tenantId, CancellationToken cancellationToken)
-        {
-            throw new NotSupportedException();
-        }
-
         public Task<bool> ExistsAsync(string tenantId, CancellationToken cancellationToken)
         {
             throw new NotSupportedException();
         }
 
-        public Task<TenantConfiguration> UpsertAsync(TenantConfiguration tenantConfiguration, CancellationToken cancellationToken)
+        public Task<ResourceEnvelope<TenantConfiguration>?> GetAsync(string tenantId, CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<UpsertResult<TenantConfiguration>> UpsertAsync(TenantConfiguration tenantConfiguration, string? expectedETag, CancellationToken cancellationToken)
         {
             throw new NotSupportedException();
         }

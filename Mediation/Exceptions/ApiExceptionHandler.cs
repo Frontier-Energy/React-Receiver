@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
+using React_Receiver.Application.Concurrency;
 using React_Receiver.Application.FormSchemas;
 
 namespace React_Receiver.Mediation.Exceptions;
@@ -31,6 +32,18 @@ public sealed class ApiExceptionHandler : IExceptionHandler
                 Title = "Schema content unavailable",
                 Detail = "Schema metadata exists, but the stored schema content could not be read.",
                 Status = StatusCodes.Status500InternalServerError
+            },
+            PreconditionRequiredException preconditionRequiredException => new ProblemDetails
+            {
+                Title = "Missing If-Match header",
+                Detail = preconditionRequiredException.Message,
+                Status = StatusCodes.Status428PreconditionRequired
+            },
+            ConcurrencyConflictException concurrencyConflictException => new ProblemDetails
+            {
+                Title = "If-Match precondition failed",
+                Detail = concurrencyConflictException.Message,
+                Status = StatusCodes.Status412PreconditionFailed
             },
             _ => new ProblemDetails
             {

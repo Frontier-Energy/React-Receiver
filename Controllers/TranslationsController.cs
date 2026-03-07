@@ -22,7 +22,13 @@ public sealed class TranslationsController : ControllerBase
     public async Task<ActionResult<TranslationsResponse>> GetTranslations([FromRoute] string language)
     {
         var response = await _sender.Send(new GetTranslationsQuery(language), HttpContext.RequestAborted);
-        return response is null ? NotFound() : Ok(response);
+        if (response is null)
+        {
+            return NotFound();
+        }
+
+        WriteConcurrencyHeaders(response.ETag);
+        return Ok(response.Resource);
     }
 
     [HttpPut("{language}")]
@@ -34,8 +40,9 @@ public sealed class TranslationsController : ControllerBase
             "Processing translations upsert for {Language}",
             language);
         var response = await _sender.Send(
-            new UpsertTranslationsCommand(language, request),
+            new UpsertTranslationsCommand(language, request, Request.Headers.IfMatch.ToString()),
             HttpContext.RequestAborted);
+        WriteConcurrencyHeaders(response.ETag);
         if (response.Created)
         {
             _logger.LogInformation(
@@ -53,5 +60,13 @@ public sealed class TranslationsController : ControllerBase
             language);
 
         return Ok(response.Resource);
+    }
+
+    private void WriteConcurrencyHeaders(string? etag)
+    {
+        if (!string.IsNullOrWhiteSpace(etag))
+        {
+            Response.Headers.ETag = etag;
+        }
     }
 }

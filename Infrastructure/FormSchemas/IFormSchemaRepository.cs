@@ -6,7 +6,7 @@ public interface IFormSchemaRepository
 {
     bool IsConfigured { get; }
     Task<FormSchemaCatalogResponse> ListAsync(CancellationToken cancellationToken);
-    Task<FormSchemaResponse?> GetAsync(string formType, CancellationToken cancellationToken);
+    Task<ResourceEnvelope<FormSchemaResponse>?> GetAsync(string formType, CancellationToken cancellationToken);
     Task<bool> ExistsAsync(string formType, CancellationToken cancellationToken);
-    Task<UpsertResult<FormSchemaResponse>> UpsertAsync(string formType, FormSchemaResponse request, CancellationToken cancellationToken);
+    Task<UpsertResult<FormSchemaResponse>> UpsertAsync(string formType, FormSchemaResponse request, string? expectedETag, CancellationToken cancellationToken);
 }

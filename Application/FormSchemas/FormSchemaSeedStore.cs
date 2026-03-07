@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using React_Receiver.Application.Concurrency;
 using React_Receiver.Models;
 using React_Receiver.Services;
 
@@ -7,8 +8,8 @@ namespace React_Receiver.Application.FormSchemas;
 public interface IFormSchemaSeedStore
 {
     IReadOnlyCollection<FormSchemaCatalogItemResponse> ListCatalogItems();
-    FormSchemaResponse? Get(string formType);
-    UpsertResult<FormSchemaResponse> Upsert(string formType, FormSchemaResponse request);
+    ResourceEnvelope<FormSchemaResponse>? Get(string formType);
+    UpsertResult<FormSchemaResponse> Upsert(string formType, FormSchemaResponse request, string? expectedETag);
     IReadOnlyCollection<KeyValuePair<string, FormSchemaResponse>> GetAll();
 }
 
@@ -20,6 +21,7 @@ public sealed class FormSchemaSeedStore : IFormSchemaSeedStore
     }
 
     private readonly ConcurrentDictionary<string, SeedEntry> _catalog;
+    private readonly object _gate = new();
 
     public FormSchemaSeedStore(IBootstrapDataProvider bootstrapDataProvider)
     {
@@ -37,22 +39,30 @@ public sealed class FormSchemaSeedStore : IFormSchemaSeedStore
         return _catalog.Select(item => item.Value.ToCatalogItem(item.Key)).ToArray();
     }
 
-    public FormSchemaResponse? Get(string formType)
+    public ResourceEnvelope<FormSchemaResponse>? Get(string formType)
     {
-        return _catalog.TryGetValue(formType, out var entry) ? entry.Schema : null;
+        return _catalog.TryGetValue(formType, out var entry)
+            ? new ResourceEnvelope<FormSchemaResponse>(entry.Schema, entry.Etag, entry.Version)
+            : null;
     }
 
-    public UpsertResult<FormSchemaResponse> Upsert(string formType, FormSchemaResponse request)
+    public UpsertResult<FormSchemaResponse> Upsert(string formType, FormSchemaResponse request, string? expectedETag)
     {
-        var now = DateTime.UtcNow;
-        var created = !_catalog.ContainsKey(formType);
-        _catalog[formType] = new SeedEntry(
-            now.ToString("yyyy-MM-dd"),
-            $"\"{formType}-{now:yyyyMMddHHmmssfff}\"",
-            request);
+        lock (_gate)
+        {
+            _catalog.TryGetValue(formType, out var existing);
+            OptimisticConcurrency.EnsureSatisfied(expectedETag, existing?.Etag, $"form schema '{formType}'");
 
-        var entry = _catalog[formType];
-        return new UpsertResult<FormSchemaResponse>(request, created, entry.Version, entry.Etag);
+            var now = DateTime.UtcNow;
+            var created = existing is null;
+            var entry = new SeedEntry(
+                now.ToString("yyyy-MM-dd"),
+                $"\"{formType}-{now:yyyyMMddHHmmssfff}\"",
+                request);
+
+            _catalog[formType] = entry;
+            return new UpsertResult<FormSchemaResponse>(request, created, entry.Version, entry.Etag);
+        }
     }
 
     public IReadOnlyCollection<KeyValuePair<string, FormSchemaResponse>> GetAll()

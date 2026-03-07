@@ -14,6 +14,10 @@ public sealed class UpsertTenantConfigCommandHandler : IRequestHandler<UpsertTen
 
     public Task<UpsertResult<TenantBootstrapResponse>> Handle(UpsertTenantConfigCommand request, CancellationToken cancellationToken)
     {
-        return _tenantConfigApplicationService.UpsertAsync(request.Request.TenantId ?? string.Empty, request.Request, cancellationToken);
+        return _tenantConfigApplicationService.UpsertAsync(
+            request.Request.TenantId ?? string.Empty,
+            request.Request,
+            request.ExpectedETag,
+            cancellationToken);
     }
 }
