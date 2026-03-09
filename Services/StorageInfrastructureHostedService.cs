@@ -8,7 +8,6 @@ namespace React_Receiver.Services;
 
 public sealed class StorageInfrastructureHostedService : IHostedService
 {
-    private const string InspectionFilesContainerName = "files";
     private readonly BlobServiceClient _blobServiceClient;
     private readonly QueueServiceClient _queueServiceClient;
     private readonly TableServiceClient _tableServiceClient;
@@ -38,7 +37,7 @@ public sealed class StorageInfrastructureHostedService : IHostedService
     public async Task StartAsync(CancellationToken cancellationToken)
     {
         await EnsureBlobContainerAsync(_blobOptions.ContainerName, "EnsurePrimaryBlobContainer", cancellationToken);
-        await EnsureBlobContainerAsync(InspectionFilesContainerName, "EnsureInspectionFilesContainer", cancellationToken);
+        await EnsureBlobContainerAsync(StorageDependencyNames.FilesContainerName, "EnsureInspectionFilesContainer", cancellationToken);
         await EnsureQueueAsync(_queueOptions.QueueName, "EnsureInspectionQueue", cancellationToken);
 
         await EnsureTableAsync(_tableOptions.TableName, "EnsureUsersTable", cancellationToken);

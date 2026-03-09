@@ -12,7 +12,6 @@ namespace React_Receiver.Infrastructure.Inspections;
 
 public sealed class AzureInspectionRepository : IInspectionRepository
 {
-    private const string FilesContainerName = "files";
     private static readonly TimeSpan ProcessingLeaseDuration = TimeSpan.FromMinutes(2);
     private readonly BlobServiceClient _blobServiceClient;
     private readonly QueueServiceClient _queueServiceClient;
@@ -238,11 +237,11 @@ public sealed class AzureInspectionRepository : IInspectionRepository
             return null;
         }
 
-        var containerClient = _blobServiceClient.GetBlobContainerClient(FilesContainerName);
+        var containerClient = _blobServiceClient.GetBlobContainerClient(StorageDependencyNames.FilesContainerName);
         var blobClient = containerClient.GetBlobClient($"{sessionId}-{safeFileName}");
         if (!await _storageObserver.ExecuteAsync(
                 "blob",
-                FilesContainerName,
+                StorageDependencyNames.FilesContainerName,
                 "InspectionFileExists",
                 ct => blobClient.ExistsAsync(ct),
                 cancellationToken))
@@ -252,7 +251,7 @@ public sealed class AzureInspectionRepository : IInspectionRepository
 
         var download = await _storageObserver.ExecuteAsync(
             "blob",
-            FilesContainerName,
+            StorageDependencyNames.FilesContainerName,
             "DownloadInspectionFile",
             ct => blobClient.DownloadStreamingAsync(cancellationToken: ct),
             cancellationToken);
@@ -403,7 +402,7 @@ public sealed class AzureInspectionRepository : IInspectionRepository
         }
 
         var sessionId = request.SessionId ?? string.Empty;
-        var filesContainerClient = _blobServiceClient.GetBlobContainerClient(FilesContainerName);
+        var filesContainerClient = _blobServiceClient.GetBlobContainerClient(StorageDependencyNames.FilesContainerName);
 
         for (var i = 0; i < request.Files.Length; i++)
         {
@@ -417,7 +416,7 @@ public sealed class AzureInspectionRepository : IInspectionRepository
             await using var fileStream = file.OpenReadStream();
             await _storageObserver.ExecuteAsync(
                 "blob",
-                FilesContainerName,
+                StorageDependencyNames.FilesContainerName,
                 "UploadInspectionFile",
                 ct => blobClient.UploadAsync(fileStream, overwrite: true, ct),
                 cancellationToken);
@@ -496,13 +495,13 @@ public sealed class AzureInspectionRepository : IInspectionRepository
                 cancellationToken);
         }
 
-        var filesContainerClient = _blobServiceClient.GetBlobContainerClient(FilesContainerName);
+        var filesContainerClient = _blobServiceClient.GetBlobContainerClient(StorageDependencyNames.FilesContainerName);
         foreach (var file in manifest)
         {
             var blobClient = filesContainerClient.GetBlobClient(file.BlobName);
             await _storageObserver.ExecuteAsync(
                 "blob",
-                FilesContainerName,
+                StorageDependencyNames.FilesContainerName,
                 "DeleteInspectionFileCompensation",
                 ct => blobClient.DeleteIfExistsAsync(cancellationToken: ct),
                 cancellationToken);

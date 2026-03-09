@@ -33,7 +33,7 @@ Configured fields:
 Notes:
 
 - `ContainerName` is used for inspection payload blobs
-- uploaded inspection files are stored in a separate hard-coded container named `files`
+- uploaded inspection files are stored in a separate container named by `StorageDependencyNames.FilesContainerName` (`Services/StorageDependencyNames.cs`)
 
 ## QueueStorage
 
@@ -112,5 +112,5 @@ BootstrapData__SeedOnStartup
 ## Operational Recommendations
 
 - Keep connection strings out of long-lived source-controlled defaults where possible.
-- Treat `files` container usage as part of inspection ingest, even though it is not configured under its own section.
+- Treat the inspection files container defined in `StorageDependencyNames.FilesContainerName` as part of inspection ingest, even though it is not configured under its own section.
 - If startup fails, inspect both option-validation failures and health-check failures.
