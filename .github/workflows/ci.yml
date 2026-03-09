@@ -26,8 +26,11 @@ jobs:
         with:
           dotnet-version: "10.0.x"
 
+      - name: Restore
+        run: dotnet restore React-Receiver.sln
+
       - name: Run unit tests
-        run: dotnet test React-Receiver.sln --configuration Release
+        run: dotnet test React-Receiver.sln --configuration Release --no-restore /p:TreatWarningsAsErrors=true
 
   deploy:
     name: Deploy

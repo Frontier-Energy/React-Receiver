@@ -35,10 +35,11 @@ public sealed class FormSchemaEntityTests
         };
 
         var response = entity.ToResponse();
+        var sections = Assert.IsType<FormSectionResponse[]>(response.Sections);
 
         Assert.Equal("Legacy Schema", response.FormName);
-        Assert.Single(response.Sections);
-        Assert.Single(response.Sections[0].Fields);
+        var section = Assert.Single(sections);
+        Assert.Single(Assert.IsType<FormFieldResponse[]>(section.Fields));
     }
 
     [Fact]
@@ -61,8 +62,9 @@ public sealed class FormSchemaEntityTests
         };
 
         var response = await repository.ReadSchemaAsync(entity, CancellationToken.None);
+        var sections = Assert.IsType<FormSectionResponse[]>(response.Sections);
 
         Assert.Equal("Legacy Schema", response.FormName);
-        Assert.Single(response.Sections);
+        Assert.Single(sections);
     }
 }

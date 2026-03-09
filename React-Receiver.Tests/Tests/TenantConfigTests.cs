@@ -21,15 +21,17 @@ public sealed class TenantConfigTests
 
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         var response = Assert.IsType<TenantBootstrapResponse>(ok.Value);
+        var uiDefaults = Assert.IsType<UiDefaults>(response.UiDefaults);
+        var enabledForms = Assert.IsType<string[]>(response.EnabledForms);
         Assert.Equal("qhvac", response.TenantId);
         Assert.Equal("QHVAC", response.DisplayName);
-        Assert.Equal("harbor", response.UiDefaults.Theme);
-        Assert.Equal("Tahoma, \"Trebuchet MS\", Arial, sans-serif", response.UiDefaults.Font);
-        Assert.Equal("en", response.UiDefaults.Language);
-        Assert.True(response.UiDefaults.ShowLeftFlyout);
-        Assert.True(response.UiDefaults.ShowRightFlyout);
-        Assert.False(response.UiDefaults.ShowInspectionStatsButton);
-        Assert.Equal(["electrical", "electrical-sf", "hvac"], response.EnabledForms);
+        Assert.Equal("harbor", uiDefaults.Theme);
+        Assert.Equal("Tahoma, \"Trebuchet MS\", Arial, sans-serif", uiDefaults.Font);
+        Assert.Equal("en", uiDefaults.Language);
+        Assert.True(uiDefaults.ShowLeftFlyout);
+        Assert.True(uiDefaults.ShowRightFlyout);
+        Assert.False(uiDefaults.ShowInspectionStatsButton);
+        Assert.Equal(["electrical", "electrical-sf", "hvac"], enabledForms);
         Assert.True(response.LoginRequired);
         Assert.Equal("\"qhvac-v1\"", controller.Response.Headers.ETag.ToString());
     }

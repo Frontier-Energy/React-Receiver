@@ -17,11 +17,14 @@ public sealed class TenantConfigHandlerTests
         var result = await handler.GetAsync(null, CancellationToken.None);
 
         Assert.NotNull(result);
-        Assert.Equal("qhvac", result.Resource.TenantId);
-        Assert.Equal("QHVAC", result.Resource.DisplayName);
-        Assert.Equal("harbor", result.Resource.UiDefaults.Theme);
-        Assert.Equal(["electrical", "electrical-sf", "hvac"], result.Resource.EnabledForms);
-        Assert.True(result.Resource.LoginRequired);
+        var resource = result.Resource;
+        var uiDefaults = Assert.IsType<UiDefaults>(resource.UiDefaults);
+        var enabledForms = Assert.IsType<string[]>(resource.EnabledForms);
+        Assert.Equal("qhvac", resource.TenantId);
+        Assert.Equal("QHVAC", resource.DisplayName);
+        Assert.Equal("harbor", uiDefaults.Theme);
+        Assert.Equal(["electrical", "electrical-sf", "hvac"], enabledForms);
+        Assert.True(resource.LoginRequired);
         Assert.False(string.IsNullOrWhiteSpace(result.ETag));
     }
 
@@ -45,11 +48,14 @@ public sealed class TenantConfigHandlerTests
         var result = await handler.UpsertAsync(" custom-tenant ", payload, null, CancellationToken.None);
 
         Assert.True(result.Created);
-        Assert.Equal("custom-tenant", result.Resource.TenantId);
-        Assert.Equal("Custom Tenant", result.Resource.DisplayName);
-        Assert.Equal("custom-theme", result.Resource.UiDefaults.Theme);
-        Assert.Equal(["hvac"], result.Resource.EnabledForms);
-        Assert.False(result.Resource.LoginRequired);
+        var resource = result.Resource;
+        var uiDefaults = Assert.IsType<UiDefaults>(resource.UiDefaults);
+        var enabledForms = Assert.IsType<string[]>(resource.EnabledForms);
+        Assert.Equal("custom-tenant", resource.TenantId);
+        Assert.Equal("Custom Tenant", resource.DisplayName);
+        Assert.Equal("custom-theme", uiDefaults.Theme);
+        Assert.Equal(["hvac"], enabledForms);
+        Assert.False(resource.LoginRequired);
     }
 
     [Fact]

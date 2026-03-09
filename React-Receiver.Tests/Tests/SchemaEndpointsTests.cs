@@ -60,8 +60,9 @@ public sealed class SchemaEndpointsTests
 
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         var response = Assert.IsType<FormSchemaResponse>(ok.Value);
+        var sections = Assert.IsType<FormSectionResponse[]>(response.Sections);
         Assert.False(string.IsNullOrWhiteSpace(response.FormName));
-        Assert.NotEmpty(response.Sections);
+        Assert.NotEmpty(sections);
         Assert.Equal("\"hvac-v1\"", controller.Response.Headers.ETag.ToString());
     }
 
