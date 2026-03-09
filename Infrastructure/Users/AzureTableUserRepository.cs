@@ -60,9 +60,7 @@ public sealed class AzureTableUserRepository : IUserRepository
         }
 
         var tableClient = _tableServiceClient.GetTableClient(_tableOptions.TableName);
-        var filter = TableClient.CreateQueryFilter<UserEntity>(entity =>
-            entity.PartitionKey == UserEntity.PartitionKeyValue &&
-            entity.Email == email);
+        var normalizedEmailRowKey = UserEmailIndexEntity.CreateRowKey(email);
 
         try
         {
@@ -72,14 +70,18 @@ public sealed class AzureTableUserRepository : IUserRepository
                 "FindUserByEmail",
                 async ct =>
                 {
-                    await foreach (var entity in tableClient.QueryAsync<UserEntity>(
-                                       filter: filter,
-                                       cancellationToken: ct))
+                    try
                     {
-                        return new UserProfile(entity.UserId, entity.Email, entity.FirstName, entity.LastName);
+                        var index = await tableClient.GetEntityAsync<UserEmailIndexEntity>(
+                            UserEntity.PartitionKeyValue,
+                            normalizedEmailRowKey,
+                            cancellationToken: ct);
+                        return await GetByIdAsync(index.Value.UserId, ct);
                     }
-
-                    return null;
+                    catch (RequestFailedException ex) when (ex.Status == 404)
+                    {
+                        return await FindByEmailLegacyAsync(tableClient, email, ct);
+                    }
                 },
                 cancellationToken);
         }
@@ -89,30 +91,60 @@ public sealed class AzureTableUserRepository : IUserRepository
         }
     }
 
-    public async Task AddAsync(UserProfile user, CancellationToken cancellationToken)
+    public async Task<UserProfile> GetOrAddByEmailAsync(UserProfile user, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(_tableOptions.ConnectionString))
         {
-            return;
+            return user;
         }
 
         var tableClient = _tableServiceClient.GetTableClient(_tableOptions.TableName);
-        await _storageObserver.ExecuteAsync(
-            "table",
-            _tableOptions.TableName,
-            "AddUser",
-            ct => tableClient.AddEntityAsync(
-                new UserEntity
-                {
-                    PartitionKey = UserEntity.PartitionKeyValue,
-                    RowKey = user.UserId,
-                    UserId = user.UserId,
-                    Email = user.Email,
-                    FirstName = user.FirstName,
-                    LastName = user.LastName
-                },
-                ct),
-            cancellationToken);
+
+        if (string.IsNullOrWhiteSpace(user.Email))
+        {
+            await _storageObserver.ExecuteAsync(
+                "table",
+                _tableOptions.TableName,
+                "AddUser",
+                ct => tableClient.AddEntityAsync(CreateUserEntity(user), ct),
+                cancellationToken);
+            return user;
+        }
+
+        try
+        {
+            await _storageObserver.ExecuteAsync(
+                "table",
+                _tableOptions.TableName,
+                "AddUser",
+                ct => tableClient.SubmitTransactionAsync(
+                    [
+                        new TableTransactionAction(TableTransactionActionType.Add, CreateUserEntity(user)),
+                        new TableTransactionAction(
+                            TableTransactionActionType.Add,
+                            new UserEmailIndexEntity
+                            {
+                                PartitionKey = UserEntity.PartitionKeyValue,
+                                RowKey = UserEmailIndexEntity.CreateRowKey(user.Email),
+                                UserId = user.UserId,
+                                Email = user.Email
+                            })
+                    ],
+                    ct),
+                cancellationToken);
+
+            return user;
+        }
+        catch (RequestFailedException ex) when (ex.Status == 409)
+        {
+            var existing = await FindByEmailAsync(user.Email, cancellationToken);
+            if (existing is not null)
+            {
+                return existing;
+            }
+
+            throw;
+        }
     }
 
     public async Task<CurrentUser?> GetCurrentUserAsync(CancellationToken cancellationToken)
@@ -162,5 +194,35 @@ public sealed class AzureTableUserRepository : IUserRepository
                 TableUpdateMode.Replace,
                 ct),
             cancellationToken);
+    }
+
+    private static UserEntity CreateUserEntity(UserProfile user) =>
+        new()
+        {
+            PartitionKey = UserEntity.PartitionKeyValue,
+            RowKey = user.UserId,
+            UserId = user.UserId,
+            Email = user.Email,
+            FirstName = user.FirstName,
+            LastName = user.LastName
+        };
+
+    private static async Task<UserProfile?> FindByEmailLegacyAsync(
+        TableClient tableClient,
+        string email,
+        CancellationToken cancellationToken)
+    {
+        var filter = TableClient.CreateQueryFilter<UserEntity>(entity =>
+            entity.PartitionKey == UserEntity.PartitionKeyValue &&
+            entity.Email == email);
+
+        await foreach (var entity in tableClient.QueryAsync<UserEntity>(
+                           filter: filter,
+                           cancellationToken: cancellationToken))
+        {
+            return new UserProfile(entity.UserId, entity.Email, entity.FirstName, entity.LastName);
+        }
+
+        return null;
     }
 }

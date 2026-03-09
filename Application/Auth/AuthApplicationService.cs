@@ -26,19 +26,10 @@ public sealed class AuthApplicationService : IAuthApplicationService
 
     public async Task<RegisterResponseModel> RegisterAsync(RegisterRequestModel request, CancellationToken cancellationToken)
     {
-        var existing = !string.IsNullOrWhiteSpace(request.Email)
-            ? await _userRepository.FindByEmailAsync(request.Email, cancellationToken)
-            : null;
-
-        if (existing is not null)
-        {
-            return new RegisterResponseModel(existing.UserId);
-        }
-
         var userId = Guid.NewGuid().ToString("N");
-        await _userRepository.AddAsync(
+        var user = await _userRepository.GetOrAddByEmailAsync(
             new UserProfile(userId, request.Email, request.FirstName, request.LastName),
             cancellationToken);
-        return new RegisterResponseModel(userId);
+        return new RegisterResponseModel(user.UserId);
     }
 }
