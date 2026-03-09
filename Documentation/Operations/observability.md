@@ -24,6 +24,11 @@ The app emits:
 - custom metrics from `React_Receiver.Observability`
 - MediatR trace spans from `React_Receiver.Activities`
 
+The app excludes these request paths from request telemetry and custom request metrics:
+
+- `/health/*`
+- `/swagger/*`
+
 ## Dashboard starting points
 
 In Application Insights, start with:

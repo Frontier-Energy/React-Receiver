@@ -25,6 +25,12 @@ public sealed class RequestObservabilityMiddleware
         Activity.Current?.SetTag("correlation.id", correlationId);
         Activity.Current?.AddBaggage("correlation.id", correlationId);
 
+        if (!RequestTelemetryFilter.ShouldCollect(context.Request.Path))
+        {
+            await _next(context);
+            return;
+        }
+
         using var scope = _logger.BeginScope(new Dictionary<string, object?>
         {
             ["CorrelationId"] = correlationId,

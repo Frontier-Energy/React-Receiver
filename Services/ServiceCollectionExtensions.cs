@@ -1,6 +1,7 @@
 using Azure.Monitor.OpenTelemetry.AspNetCore;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
+using OpenTelemetry.Instrumentation.AspNetCore;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 using React_Receiver.Mediation.Behaviors;
@@ -37,6 +38,11 @@ public static class ServiceCollectionExtensions
 
     public static IServiceCollection AddObservabilityServices(this IServiceCollection services, IConfiguration configuration)
     {
+        services.Configure<AspNetCoreTraceInstrumentationOptions>(options =>
+        {
+            options.RecordException = true;
+            options.Filter = httpContext => RequestTelemetryFilter.ShouldCollect(httpContext.Request.Path);
+        });
         services.ConfigureOpenTelemetryMeterProvider((_, metrics) =>
         {
             metrics.AddMeter(ReceiverTelemetry.MeterName);
