@@ -137,6 +137,26 @@ public static class ServiceCollectionExtensions
 
     public static IServiceCollection AddHostedServices(this IServiceCollection services)
     {
+        services
+            .AddOptions<InspectionIngestRetryOptions>()
+            .BindConfiguration("InspectionIngestRetry")
+            .PostConfigure(options =>
+            {
+                if (options.PollInterval <= TimeSpan.Zero)
+                {
+                    options.PollInterval = TimeSpan.FromSeconds(10);
+                }
+
+                if (options.BatchSize <= 0)
+                {
+                    options.BatchSize = 100;
+                }
+
+                if (options.MaxConcurrentSessions <= 0)
+                {
+                    options.MaxConcurrentSessions = 8;
+                }
+            });
         services.AddHostedService<StorageInfrastructureHostedService>();
         services.AddHostedService<StartupHealthCheckHostedService>();
         services.AddHostedService<BootstrapDataHostedService>();
