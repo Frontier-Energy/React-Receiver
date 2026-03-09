@@ -6,12 +6,16 @@ using React_Receiver.Application.TenantConfig;
 using React_Receiver.Application.Translations;
 using React_Receiver.Application.Users;
 using React_Receiver.Middleware;
+using React_Receiver.Observability;
 using React_Receiver.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.AddReceiverObservability();
+
 builder.Services
     .AddApiServices()
+    .AddObservabilityServices(builder.Configuration)
     .AddStorageServices(builder.Configuration)
     .AddAuthFeature()
     .AddUserFeature()

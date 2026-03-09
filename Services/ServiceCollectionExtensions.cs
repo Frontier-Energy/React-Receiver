@@ -1,5 +1,8 @@
+using Azure.Monitor.OpenTelemetry.AspNetCore;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Trace;
 using React_Receiver.Mediation.Behaviors;
 using React_Receiver.Mediation.Exceptions;
 using React_Receiver.Mediation.Transactions;
@@ -29,6 +32,26 @@ public static class ServiceCollectionExtensions
             options.SwaggerDoc("v1", new() { Title = "React-Receiver API", Version = "v1" });
         });
         services.AddRequestValidation();
+        return services;
+    }
+
+    public static IServiceCollection AddObservabilityServices(this IServiceCollection services, IConfiguration configuration)
+    {
+        services.ConfigureOpenTelemetryMeterProvider((_, metrics) =>
+        {
+            metrics.AddMeter(ReceiverTelemetry.MeterName);
+        });
+        services.ConfigureOpenTelemetryTracerProvider((_, tracing) =>
+        {
+            tracing.AddSource(ReceiverTelemetry.ActivitySourceName);
+        });
+        services.AddOpenTelemetry().UseAzureMonitor(options =>
+        {
+            options.ConnectionString =
+                configuration["AzureMonitor:ConnectionString"] ??
+                configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"];
+        });
+
         return services;
     }
 

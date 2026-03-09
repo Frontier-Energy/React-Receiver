@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Diagnostics.Metrics;
 
 namespace React_Receiver.Observability;
@@ -5,8 +6,12 @@ namespace React_Receiver.Observability;
 public static class ReceiverTelemetry
 {
     public const string CorrelationHeaderName = "X-Correlation-ID";
+    public const string MeterName = "React_Receiver.Observability";
+    public const string ActivitySourceName = "React_Receiver.Activities";
 
-    private static readonly Meter Meter = new("React_Receiver.Observability", "1.0.0");
+    private static readonly Meter Meter = new(MeterName, "1.0.0");
+
+    public static readonly ActivitySource ActivitySource = new(ActivitySourceName);
 
     public static readonly Histogram<double> HttpRequestDurationMs =
         Meter.CreateHistogram<double>("react_receiver.http.request.duration", unit: "ms");
