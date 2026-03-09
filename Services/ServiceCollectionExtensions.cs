@@ -3,6 +3,7 @@ using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using OpenTelemetry.Instrumentation.AspNetCore;
 using OpenTelemetry.Metrics;
+using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using React_Receiver.Mediation.Behaviors;
 using React_Receiver.Mediation.Exceptions;
@@ -43,6 +44,16 @@ public static class ServiceCollectionExtensions
             options.RecordException = true;
             options.Filter = httpContext => RequestTelemetryFilter.ShouldCollect(httpContext.Request.Path);
         });
+        services.AddOpenTelemetry()
+            .ConfigureResource(resource => resource.AddService(
+                serviceName: "react-receiver",
+                serviceVersion: ResolveServiceVersion(configuration)))
+            .UseAzureMonitor(options =>
+            {
+                options.ConnectionString =
+                    configuration["AzureMonitor:ConnectionString"] ??
+                    configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"];
+            });
         services.ConfigureOpenTelemetryMeterProvider((_, metrics) =>
         {
             metrics.AddMeter(ReceiverTelemetry.MeterName);
@@ -50,12 +61,6 @@ public static class ServiceCollectionExtensions
         services.ConfigureOpenTelemetryTracerProvider((_, tracing) =>
         {
             tracing.AddSource(ReceiverTelemetry.ActivitySourceName);
-        });
-        services.AddOpenTelemetry().UseAzureMonitor(options =>
-        {
-            options.ConnectionString =
-                configuration["AzureMonitor:ConnectionString"] ??
-                configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"];
         });
 
         return services;
@@ -134,5 +139,13 @@ public static class ServiceCollectionExtensions
         services.AddHostedService<BootstrapDataHostedService>();
         services.AddHostedService<InspectionIngestRetryHostedService>();
         return services;
+    }
+
+    private static string ResolveServiceVersion(IConfiguration configuration)
+    {
+        return configuration["APP_VERSION"] ??
+            configuration["OTEL_SERVICE_VERSION"] ??
+            typeof(Program).Assembly.GetName().Version?.ToString() ??
+            "unknown";
     }
 }
