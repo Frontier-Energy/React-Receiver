@@ -20,6 +20,7 @@ public sealed class InspectionsController : ControllerBase
 
     [HttpPost]
     [Consumes("multipart/form-data")]
+    [RequestFormLimits(MultipartBodyLengthLimit = ReceiveInspectionFormRequest.MaxMultipartBodyLengthBytes)]
     public async Task<ActionResult<ReceiveInspectionResponse>> ReceiveInspection(
         [FromForm] ReceiveInspectionFormRequest request)
     {

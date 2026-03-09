@@ -1,5 +1,9 @@
 using System.ComponentModel.DataAnnotations;
+using System.IO;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 using React_Receiver.Models;
+using React_Receiver.Validation;
 using Xunit;
 
 namespace React_Receiver.Tests;
@@ -71,11 +75,43 @@ public sealed class RequestContractValidationTests
         Assert.Contains(results, item => item.MemberNames.Contains(nameof(TranslationsResponse.App)));
     }
 
+    [Fact]
+    public void ReceiveInspectionFormRequestValidator_RejectsUnsupportedFilesAndOversizedUploads()
+    {
+        var validator = new ReceiveInspectionFormRequestValidator();
+        var modelState = new ModelStateDictionary();
+        var files = new[]
+        {
+            CreateFormFile("malware.exe", "application/octet-stream", 8),
+            CreateFormFile("photo.jpg", "image/jpeg", ReceiveInspectionFormRequest.MaxFileBytes + 1)
+        };
+        var request = new ReceiveInspectionFormRequest(
+            new string('a', ReceiveInspectionFormRequest.MaxPayloadBytes + 1),
+            files);
+
+        validator.Validate(request, modelState);
+
+        Assert.False(modelState.IsValid);
+        Assert.Contains(modelState, item => item.Key == nameof(ReceiveInspectionFormRequest.Payload));
+        Assert.Contains(modelState, item => item.Key == $"{nameof(ReceiveInspectionFormRequest.Files)}[0]");
+        Assert.Contains(modelState, item => item.Key == $"{nameof(ReceiveInspectionFormRequest.Files)}[1]");
+    }
+
     private static IReadOnlyList<ValidationResult> Validate(object model)
     {
         var results = new List<ValidationResult>();
         var context = new ValidationContext(model);
         Validator.TryValidateObject(model, context, results, validateAllProperties: true);
         return results;
+    }
+
+    private static IFormFile CreateFormFile(string fileName, string contentType, long length)
+    {
+        var stream = new MemoryStream(new byte[length]);
+        return new FormFile(stream, 0, length, "files", fileName)
+        {
+            Headers = new HeaderDictionary(),
+            ContentType = contentType
+        };
     }
 }

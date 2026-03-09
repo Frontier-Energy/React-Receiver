@@ -118,7 +118,71 @@ public static class RequestValidationServiceCollectionExtensions
 public sealed class LoginRequestCommandValidator : NoOpRequestValidator<LoginRequestCommand>;
 public sealed class RegisterRequestModelValidator : NoOpRequestValidator<RegisterRequestModel>;
 public sealed class ReceiveInspectionRequestValidator : NoOpRequestValidator<ReceiveInspectionRequest>;
-public sealed class ReceiveInspectionFormRequestValidator : NoOpRequestValidator<ReceiveInspectionFormRequest>;
+public sealed class ReceiveInspectionFormRequestValidator : RequestValidator<ReceiveInspectionFormRequest>
+{
+    public override void Validate(ReceiveInspectionFormRequest request, ModelStateDictionary modelState)
+    {
+        var payloadBytes = ReceiveInspectionFormRequest.GetPayloadSizeBytes(request.Payload);
+        if (payloadBytes > ReceiveInspectionFormRequest.MaxPayloadBytes)
+        {
+            modelState.AddModelError(
+                nameof(ReceiveInspectionFormRequest.Payload),
+                $"Payload exceeds the {ReceiveInspectionFormRequest.MaxPayloadBytes} byte limit.");
+        }
+
+        var files = request.Files ?? [];
+        if (files.Length > ReceiveInspectionFormRequest.MaxFileCount)
+        {
+            modelState.AddModelError(
+                nameof(ReceiveInspectionFormRequest.Files),
+                $"A maximum of {ReceiveInspectionFormRequest.MaxFileCount} files is allowed.");
+        }
+
+        long totalFileBytes = 0;
+        for (var i = 0; i < files.Length; i++)
+        {
+            var file = files[i];
+            if (file is null)
+            {
+                modelState.AddModelError($"{nameof(ReceiveInspectionFormRequest.Files)}[{i}]", "File entry is required.");
+                continue;
+            }
+
+            if (file.Length <= 0)
+            {
+                modelState.AddModelError($"{nameof(ReceiveInspectionFormRequest.Files)}[{i}]", "Files must not be empty.");
+                continue;
+            }
+
+            if (file.Length > ReceiveInspectionFormRequest.MaxFileBytes)
+            {
+                modelState.AddModelError(
+                    $"{nameof(ReceiveInspectionFormRequest.Files)}[{i}]",
+                    $"File '{file.FileName}' exceeds the {ReceiveInspectionFormRequest.MaxFileBytes} byte limit.");
+            }
+
+            totalFileBytes += file.Length;
+            if (!ReceiveInspectionFormRequest.TryValidateFileType(file.FileName, file.ContentType, out var errorMessage))
+            {
+                modelState.AddModelError($"{nameof(ReceiveInspectionFormRequest.Files)}[{i}]", errorMessage);
+            }
+        }
+
+        if (totalFileBytes > ReceiveInspectionFormRequest.MaxTotalFileBytes)
+        {
+            modelState.AddModelError(
+                nameof(ReceiveInspectionFormRequest.Files),
+                $"Combined file uploads exceed the {ReceiveInspectionFormRequest.MaxTotalFileBytes} byte limit.");
+        }
+
+        if (payloadBytes + totalFileBytes > ReceiveInspectionFormRequest.MaxMultipartBodyLengthBytes)
+        {
+            modelState.AddModelError(
+                string.Empty,
+                $"Request exceeds the {ReceiveInspectionFormRequest.MaxMultipartBodyLengthBytes} byte multipart limit.");
+        }
+    }
+}
 public sealed class GetUserRequestValidator : NoOpRequestValidator<GetUserRequest>;
 public sealed class GetInspectionRequestValidator : NoOpRequestValidator<GetInspectionRequest>;
 public sealed class GetInspectionFileRequestValidator : NoOpRequestValidator<GetInspectionFileRequest>;

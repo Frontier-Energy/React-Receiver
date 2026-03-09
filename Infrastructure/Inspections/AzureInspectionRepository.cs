@@ -4,6 +4,7 @@ using Azure.Data.Tables;
 using Azure.Storage.Blobs;
 using Azure.Storage.Queues;
 using React_Receiver.Domain.Inspections;
+using React_Receiver.Mediation.Exceptions;
 using React_Receiver.Models;
 using React_Receiver.Observability;
 using React_Receiver.Services;
@@ -644,14 +645,60 @@ public sealed class AzureInspectionRepository : IInspectionRepository
         var matches =
             string.Equals(entity.UserId, request.UserId ?? string.Empty, StringComparison.Ordinal) &&
             string.Equals(entity.Name, request.Name ?? string.Empty, StringComparison.Ordinal) &&
-            JsonSerializer.Serialize(existingQueryParams) == JsonSerializer.Serialize(incomingQueryParams) &&
-            JsonSerializer.Serialize(existingFiles) == JsonSerializer.Serialize(manifest);
+            QueryParamsMatch(existingQueryParams, incomingQueryParams) &&
+            FilesMatch(existingFiles, manifest);
 
         if (!matches)
         {
-            throw new InvalidOperationException(
-                $"Inspection ingest '{request.SessionId}' already exists with a different payload.");
+            throw new DuplicateInspectionSessionException(
+                $"Inspection ingest '{request.SessionId}' already exists with different normalized payload or file metadata.");
         }
+    }
+
+    private static bool QueryParamsMatch(
+        IReadOnlyDictionary<string, string> existingQueryParams,
+        IReadOnlyDictionary<string, string> incomingQueryParams)
+    {
+        if (existingQueryParams.Count != incomingQueryParams.Count)
+        {
+            return false;
+        }
+
+        foreach (var pair in existingQueryParams)
+        {
+            if (!incomingQueryParams.TryGetValue(pair.Key, out var incomingValue) ||
+                !string.Equals(pair.Value, incomingValue, StringComparison.Ordinal))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool FilesMatch(
+        IReadOnlyList<InspectionIngestFileManifest> existingFiles,
+        IReadOnlyList<InspectionIngestFileManifest> incomingFiles)
+    {
+        if (existingFiles.Count != incomingFiles.Count)
+        {
+            return false;
+        }
+
+        for (var i = 0; i < existingFiles.Count; i++)
+        {
+            var existing = existingFiles[i];
+            var incoming = incomingFiles[i];
+            if (!string.Equals(existing.FileName, incoming.FileName, StringComparison.Ordinal) ||
+                !string.Equals(existing.BlobName, incoming.BlobName, StringComparison.Ordinal) ||
+                !string.Equals(existing.FileType, incoming.FileType, StringComparison.Ordinal) ||
+                existing.Length != incoming.Length)
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static ReceiveInspectionResponse BuildResponse(ReceiveInspectionRequest request)

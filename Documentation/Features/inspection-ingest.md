@@ -44,6 +44,20 @@ Expected parts:
 - `Payload`: JSON payload string
 - `Files`: optional uploaded files
 
+Operational limits:
+
+- multipart body limit: `27,279,360` bytes
+- payload limit: `65,536` UTF-8 bytes
+- file count limit: `10`
+- per-file limit: `10,485,760` bytes
+- total uploaded file limit: `26,214,400` bytes
+- allowed file extensions: `.jpg`, `.jpeg`, `.png`, `.pdf`, `.txt`
+- allowed MIME types:
+  - `.jpg` and `.jpeg`: `image/jpeg`, `image/jpg`
+  - `.png`: `image/png`
+  - `.pdf`: `application/pdf`
+  - `.txt`: `text/plain`
+
 The JSON payload maps to `ReceiveInspectionRequest` and includes:
 
 - `sessionId`
@@ -52,6 +66,7 @@ The JSON payload maps to `ReceiveInspectionRequest` and includes:
 - `queryParams`
 
 If `sessionId` is missing, the repository assigns a value during normalization.
+That generated value makes the request non-idempotent from the caller's perspective.
 
 ## High-Level Flow
 
@@ -70,7 +85,7 @@ The full flow is:
 
 `ReceiveInspectionRequestParser` turns the multipart `Payload` JSON and `Files` collection into a `ReceiveInspectionRequest`.
 
-If the JSON is invalid, the handler throws `RequestParsingException`, which is translated into a `400 Bad Request`.
+If the JSON is invalid or the payload exceeds the parser limit, the handler throws `RequestParsingException`, which is translated into a `400 Bad Request`.
 
 ## Stage 2: Outbox Creation Or Reuse
 
@@ -78,8 +93,10 @@ If the JSON is invalid, the handler throws `RequestParsingException`, which is t
 
 Important behavior:
 
-- if the same `sessionId` already exists with equivalent request content, the existing outbox row is reused
-- if the same `sessionId` exists with different payload content, the request is rejected
+- if the same caller-supplied `sessionId` already exists with the same normalized request, the existing outbox row is reused and the endpoint remains idempotent
+- normalized equivalence means `userId`, `name`, query param key-value pairs, and the ordered file manifest match exactly after filename sanitization
+- file bytes are not re-hashed for deduplication; equivalence is based on normalized metadata already stored in the outbox row
+- if the same `sessionId` exists with different normalized payload or file metadata, the request is rejected with `409 Conflict`
 
 ## Stage 3: Staging Payload And Files
 

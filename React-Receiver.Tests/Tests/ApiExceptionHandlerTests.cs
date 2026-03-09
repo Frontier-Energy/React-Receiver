@@ -45,6 +45,23 @@ public sealed class ApiExceptionHandlerTests
     }
 
     [Fact]
+    public async Task TryHandleAsync_ReturnsConflictProblem_ForDuplicateInspectionSessions()
+    {
+        var problemDetailsService = new CapturingProblemDetailsService();
+        var handler = new ApiExceptionHandler(problemDetailsService);
+        var httpContext = new DefaultHttpContext();
+
+        var handled = await handler.TryHandleAsync(
+            httpContext,
+            new DuplicateInspectionSessionException("Inspection ingest 'session-1' already exists with different normalized payload or file metadata."),
+            CancellationToken.None);
+
+        Assert.True(handled);
+        Assert.Equal(StatusCodes.Status409Conflict, httpContext.Response.StatusCode);
+        Assert.Equal("Inspection session conflict", problemDetailsService.LastProblem?.Title);
+    }
+
+    [Fact]
     public async Task TryHandleAsync_ReturnsPreconditionRequiredProblem_ForMissingIfMatch()
     {
         var problemDetailsService = new CapturingProblemDetailsService();

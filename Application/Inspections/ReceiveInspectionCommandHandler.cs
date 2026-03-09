@@ -23,9 +23,10 @@ public sealed class ReceiveInspectionCommandHandler : IRequestHandler<ReceiveIns
         if (!_receiveInspectionRequestParser.TryParseFormRequest(
             request.Request.Payload,
             request.Request.Files,
-            out var parsedRequest))
+            out var parsedRequest,
+            out var errorMessage))
         {
-            throw new RequestParsingException("Invalid payload JSON.");
+            throw new RequestParsingException(errorMessage ?? "Payload must be valid JSON.");
         }
 
         return _inspectionApplicationService.ReceiveInspectionAsync(parsedRequest, cancellationToken);

@@ -26,7 +26,7 @@ public sealed class ReceiveInspectionTests
         var exception = await Assert.ThrowsAsync<RequestParsingException>(() =>
             commandHandler.Handle(new ReceiveInspectionCommand(new ReceiveInspectionFormRequest("not json", null)), CancellationToken.None));
 
-        Assert.Equal("Invalid payload JSON.", exception.Message);
+        Assert.Equal("Payload must be valid JSON.", exception.Message);
         Assert.Equal(0, handler.CallCount);
     }
 

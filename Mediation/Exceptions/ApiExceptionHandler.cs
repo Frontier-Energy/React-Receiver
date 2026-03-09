@@ -27,6 +27,12 @@ public sealed class ApiExceptionHandler : IExceptionHandler
                 Detail = parsingException.Message,
                 Status = StatusCodes.Status400BadRequest
             },
+            DuplicateInspectionSessionException duplicateInspectionSessionException => new ProblemDetails
+            {
+                Title = "Inspection session conflict",
+                Detail = duplicateInspectionSessionException.Message,
+                Status = StatusCodes.Status409Conflict
+            },
             FormSchemaBlobContentException => new ProblemDetails
             {
                 Title = "Schema content unavailable",
