@@ -10,6 +10,14 @@ public interface IAuditEventLogger
 
 public sealed class AuditEventLogger : IAuditEventLogger
 {
+    private static readonly HashSet<string> AllowedTelemetryProperties = new(StringComparer.Ordinal)
+    {
+        "created",
+        "errorType",
+        "language",
+        "result"
+    };
+
     private readonly ILogger<AuditEventLogger> _logger;
 
     public AuditEventLogger(ILogger<AuditEventLogger> logger)
@@ -19,7 +27,9 @@ public sealed class AuditEventLogger : IAuditEventLogger
 
     public void Log(string eventName, IReadOnlyDictionary<string, object?> properties)
     {
-        using var scope = _logger.BeginScope(properties);
+        var telemetryProperties = CreateTelemetryProperties(properties);
+
+        using var scope = _logger.BeginScope(telemetryProperties);
         _logger.LogInformation("Audit event {AuditEventName}", eventName);
 
         var tags = new TagList
@@ -27,7 +37,7 @@ public sealed class AuditEventLogger : IAuditEventLogger
             { "audit.event", eventName }
         };
 
-        foreach (var property in properties)
+        foreach (var property in telemetryProperties)
         {
             if (property.Value is null)
             {
@@ -38,5 +48,22 @@ public sealed class AuditEventLogger : IAuditEventLogger
         }
 
         ReceiverTelemetry.AuditEvents.Add(1, tags);
+    }
+
+    private static Dictionary<string, object?> CreateTelemetryProperties(IReadOnlyDictionary<string, object?> properties)
+    {
+        var filtered = new Dictionary<string, object?>(StringComparer.Ordinal);
+
+        foreach (var property in properties)
+        {
+            if (!AllowedTelemetryProperties.Contains(property.Key) || property.Value is null)
+            {
+                continue;
+            }
+
+            filtered[property.Key] = property.Value;
+        }
+
+        return filtered;
     }
 }
