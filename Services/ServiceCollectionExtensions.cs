@@ -111,6 +111,9 @@ public static class ServiceCollectionExtensions
             .AddCheck<BlobStorageHealthCheck>(
                 "blob-storage",
                 tags: ["startup", "ready"])
+            .AddCheck<QueueStorageHealthCheck>(
+                "queue-storage",
+                tags: ["startup", "ready"])
             .AddCheck<TableStorageHealthCheck>(
                 "table-storage",
                 tags: ["startup", "ready"]);

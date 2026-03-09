@@ -1,5 +1,6 @@
 using Azure.Data.Tables;
 using Azure.Storage.Blobs;
+using Azure.Storage.Queues;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
 
@@ -185,5 +186,61 @@ public sealed class TableStorageHealthCheck : IHealthCheck
             ["TableStorage:FormSchemasTableName"] = options.FormSchemasTableName?.Trim(),
             ["TableStorage:TranslationsTableName"] = options.TranslationsTableName?.Trim()
         };
+    }
+}
+
+public sealed class QueueStorageHealthCheck : IHealthCheck
+{
+    private readonly QueueServiceClient _queueServiceClient;
+    private readonly QueueStorageOptions _options;
+
+    public QueueStorageHealthCheck(
+        QueueServiceClient queueServiceClient,
+        IOptions<QueueStorageOptions> options)
+    {
+        _queueServiceClient = queueServiceClient;
+        _options = options.Value;
+    }
+
+    public async Task<HealthCheckResult> CheckHealthAsync(
+        HealthCheckContext context,
+        CancellationToken cancellationToken = default)
+    {
+        var failures = new List<string>();
+
+        foreach (var queueName in GetRequiredQueueNames(_options))
+        {
+            try
+            {
+                var exists = await _queueServiceClient
+                    .GetQueueClient(queueName)
+                    .ExistsAsync(cancellationToken);
+
+                if (!exists.Value)
+                {
+                    failures.Add($"Queue '{queueName}' does not exist.");
+                }
+            }
+            catch (Exception ex)
+            {
+                failures.Add($"Queue '{queueName}' check failed: {ex.Message}");
+            }
+        }
+
+        return failures.Count > 0
+            ? HealthCheckResult.Unhealthy("Queue storage dependency check failed.", data: new Dictionary<string, object> { ["errors"] = failures })
+            : HealthCheckResult.Healthy("Queue storage dependencies are reachable.");
+    }
+
+    public static IReadOnlyCollection<string> GetRequiredQueueNames(QueueStorageOptions options)
+    {
+        return new[]
+        {
+            options.QueueName?.Trim()
+        }
+        .Where(static name => !string.IsNullOrWhiteSpace(name))
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .Cast<string>()
+        .ToArray();
     }
 }

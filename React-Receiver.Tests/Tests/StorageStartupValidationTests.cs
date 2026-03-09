@@ -28,6 +28,25 @@ public sealed class StorageStartupValidationTests
     }
 
     [Fact]
+    public void QueueStorageOptionsValidator_ReturnsFailures_ForMissingRequiredValues()
+    {
+        var validator = new QueueStorageOptionsValidator();
+
+        var result = validator.Validate(
+            name: null,
+            new QueueStorageOptions
+            {
+                ConnectionString = string.Empty,
+                QueueName = string.Empty
+            });
+
+        Assert.False(result.Succeeded);
+        var failures = Assert.IsAssignableFrom<IReadOnlyCollection<string>>(result.Failures);
+        Assert.Contains("QueueStorage:ConnectionString is required.", failures);
+        Assert.Contains("QueueStorage:QueueName is required.", failures);
+    }
+
+    [Fact]
     public void TableStorageOptionsValidator_ReturnsFailures_ForMissingTableNames()
     {
         var validator = new TableStorageOptionsValidator();
@@ -136,6 +155,17 @@ public sealed class StorageStartupValidationTests
         Assert.True(storageIndex >= 0, "Storage infrastructure hosted service registration was not found.");
         Assert.True(startupIndex >= 0, "Startup health check hosted service registration was not found.");
         Assert.True(storageIndex < startupIndex, "Storage infrastructure must start before startup health checks.");
+    }
+
+    [Fact]
+    public void ServiceCollectionExtensions_RegistersQueueStorageHealthCheck_ForStartupAndReadiness()
+    {
+        var repositoryRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
+        var source = File.ReadAllText(Path.Combine(repositoryRoot, "Services/ServiceCollectionExtensions.cs"));
+
+        Assert.Contains("AddCheck<QueueStorageHealthCheck>(", source, StringComparison.Ordinal);
+        Assert.Contains("\"queue-storage\"", source, StringComparison.Ordinal);
+        Assert.Contains("tags: [\"startup\", \"ready\"]", source, StringComparison.Ordinal);
     }
 
     private sealed class StubHealthCheckService : HealthCheckService
