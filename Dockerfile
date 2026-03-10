@@ -1,6 +1,8 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0-preview AS build
 WORKDIR /src
 
+COPY ["Directory.Build.props", "./"]
+COPY ["Directory.Packages.props", "./"]
 COPY ["React-Receiver.csproj", "./"]
 RUN dotnet restore "React-Receiver.csproj"
 
