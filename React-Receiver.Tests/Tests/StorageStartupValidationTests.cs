@@ -19,12 +19,13 @@ public sealed class StorageStartupValidationTests
             new BlobStorageOptions
             {
                 ConnectionString = string.Empty,
+                ServiceUri = string.Empty,
                 ContainerName = string.Empty
             });
 
         Assert.False(result.Succeeded);
         var failures = Assert.IsAssignableFrom<IReadOnlyCollection<string>>(result.Failures);
-        Assert.Contains("BlobStorage:ConnectionString is required.", failures);
+        Assert.Contains("BlobStorage:ConnectionString or BlobStorage:ServiceUri is required.", failures);
         Assert.Contains("BlobStorage:ContainerName is required.", failures);
     }
 
@@ -38,12 +39,13 @@ public sealed class StorageStartupValidationTests
             new QueueStorageOptions
             {
                 ConnectionString = string.Empty,
+                ServiceUri = string.Empty,
                 QueueName = string.Empty
             });
 
         Assert.False(result.Succeeded);
         var failures = Assert.IsAssignableFrom<IReadOnlyCollection<string>>(result.Failures);
-        Assert.Contains("QueueStorage:ConnectionString is required.", failures);
+        Assert.Contains("QueueStorage:ConnectionString or QueueStorage:ServiceUri is required.", failures);
         Assert.Contains("QueueStorage:QueueName is required.", failures);
     }
 
@@ -57,6 +59,7 @@ public sealed class StorageStartupValidationTests
             new TableStorageOptions
             {
                 ConnectionString = string.Empty,
+                ServiceUri = string.Empty,
                 TableName = string.Empty,
                 InspectionFilesTableName = string.Empty,
                 InspectionIngestOutboxTableName = string.Empty,
@@ -69,7 +72,7 @@ public sealed class StorageStartupValidationTests
 
         Assert.False(result.Succeeded);
         var failures = Assert.IsAssignableFrom<IReadOnlyCollection<string>>(result.Failures);
-        Assert.Contains("TableStorage:ConnectionString is required.", failures);
+        Assert.Contains("TableStorage:ConnectionString or TableStorage:ServiceUri is required.", failures);
         Assert.Contains("TableStorage:InspectionIngestOutboxTableName is required.", failures);
         Assert.Contains("TableStorage:FormSchemasTableName is required.", failures);
         Assert.Contains("TableStorage:TranslationsTableName is required.", failures);
@@ -108,6 +111,7 @@ public sealed class StorageStartupValidationTests
             Options.Create(new TableStorageOptions
             {
                 ConnectionString = string.Empty,
+                ServiceUri = string.Empty,
                 TableName = string.Empty
             }));
 
@@ -115,7 +119,7 @@ public sealed class StorageStartupValidationTests
 
         Assert.Equal(HealthStatus.Unhealthy, result.Status);
         var missing = Assert.IsAssignableFrom<IReadOnlyCollection<string>>(result.Data["missing"]);
-        Assert.Contains("BlobStorage:ConnectionString", missing);
+        Assert.Contains("BlobStorage:ConnectionString|ServiceUri", missing);
         Assert.Contains("QueueStorage:QueueName", missing);
         Assert.Contains("TableStorage:TableName", missing);
     }

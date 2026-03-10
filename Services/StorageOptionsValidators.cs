@@ -8,9 +8,10 @@ public sealed class BlobStorageOptionsValidator : IValidateOptions<BlobStorageOp
     {
         var failures = new List<string>();
 
-        if (string.IsNullOrWhiteSpace(options.ConnectionString))
+        if (string.IsNullOrWhiteSpace(options.ConnectionString) &&
+            string.IsNullOrWhiteSpace(options.ServiceUri))
         {
-            failures.Add("BlobStorage:ConnectionString is required.");
+            failures.Add("BlobStorage:ConnectionString or BlobStorage:ServiceUri is required.");
         }
 
         if (string.IsNullOrWhiteSpace(options.ContainerName))
@@ -30,9 +31,10 @@ public sealed class QueueStorageOptionsValidator : IValidateOptions<QueueStorage
     {
         var failures = new List<string>();
 
-        if (string.IsNullOrWhiteSpace(options.ConnectionString))
+        if (string.IsNullOrWhiteSpace(options.ConnectionString) &&
+            string.IsNullOrWhiteSpace(options.ServiceUri))
         {
-            failures.Add("QueueStorage:ConnectionString is required.");
+            failures.Add("QueueStorage:ConnectionString or QueueStorage:ServiceUri is required.");
         }
 
         if (string.IsNullOrWhiteSpace(options.QueueName))
@@ -52,9 +54,10 @@ public sealed class TableStorageOptionsValidator : IValidateOptions<TableStorage
     {
         var failures = new List<string>();
 
-        if (string.IsNullOrWhiteSpace(options.ConnectionString))
+        if (string.IsNullOrWhiteSpace(options.ConnectionString) &&
+            string.IsNullOrWhiteSpace(options.ServiceUri))
         {
-            failures.Add("TableStorage:ConnectionString is required.");
+            failures.Add("TableStorage:ConnectionString or TableStorage:ServiceUri is required.");
         }
 
         AddRequiredFailure(failures, options.TableName, "TableStorage:TableName");

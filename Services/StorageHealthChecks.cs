@@ -28,9 +28,10 @@ public sealed class StorageConfigurationHealthCheck : IHealthCheck
     {
         var problems = new List<string>();
 
-        if (string.IsNullOrWhiteSpace(_blobOptions.ConnectionString))
+        if (string.IsNullOrWhiteSpace(_blobOptions.ConnectionString) &&
+            string.IsNullOrWhiteSpace(_blobOptions.ServiceUri))
         {
-            problems.Add("BlobStorage:ConnectionString");
+            problems.Add("BlobStorage:ConnectionString|ServiceUri");
         }
 
         if (string.IsNullOrWhiteSpace(_blobOptions.ContainerName))
@@ -38,9 +39,10 @@ public sealed class StorageConfigurationHealthCheck : IHealthCheck
             problems.Add("BlobStorage:ContainerName");
         }
 
-        if (string.IsNullOrWhiteSpace(_queueOptions.ConnectionString))
+        if (string.IsNullOrWhiteSpace(_queueOptions.ConnectionString) &&
+            string.IsNullOrWhiteSpace(_queueOptions.ServiceUri))
         {
-            problems.Add("QueueStorage:ConnectionString");
+            problems.Add("QueueStorage:ConnectionString|ServiceUri");
         }
 
         if (string.IsNullOrWhiteSpace(_queueOptions.QueueName))
@@ -48,9 +50,10 @@ public sealed class StorageConfigurationHealthCheck : IHealthCheck
             problems.Add("QueueStorage:QueueName");
         }
 
-        if (string.IsNullOrWhiteSpace(_tableOptions.ConnectionString))
+        if (string.IsNullOrWhiteSpace(_tableOptions.ConnectionString) &&
+            string.IsNullOrWhiteSpace(_tableOptions.ServiceUri))
         {
-            problems.Add("TableStorage:ConnectionString");
+            problems.Add("TableStorage:ConnectionString|ServiceUri");
         }
 
         foreach (var tableName in TableStorageHealthCheck.RequiredSettingNames(_tableOptions))

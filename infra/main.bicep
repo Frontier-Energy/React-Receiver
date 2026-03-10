@@ -121,8 +121,13 @@ var tags = {
   managedBy: 'bicep'
   region: location
 }
-var storageConnectionString = 'DefaultEndpointsProtocol=https;AccountName=${storageAccount.name};AccountKey=${storageAccount.listKeys().keys[0].value};EndpointSuffix=${environment().suffixes.storage}'
 var acrPullRoleDefinitionId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')
+var storageBlobDataContributorRoleDefinitionId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')
+var storageQueueDataContributorRoleDefinitionId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '974c5e8b-45b9-4653-ba55-5f855dd0fb88')
+var storageTableDataContributorRoleDefinitionId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3')
+var blobServiceUri = 'https://${storageAccount.name}.blob.${environment().suffixes.storage}'
+var queueServiceUri = 'https://${storageAccount.name}.queue.${environment().suffixes.storage}'
+var tableServiceUri = 'https://${storageAccount.name}.table.${environment().suffixes.storage}'
 
 resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
   name: logAnalyticsWorkspaceName
@@ -159,7 +164,7 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2023-05-01' = {
   properties: {
     accessTier: 'Hot'
     allowBlobPublicAccess: false
-    allowSharedKeyAccess: true
+    allowSharedKeyAccess: false
     minimumTlsVersion: 'TLS1_2'
     supportsHttpsTrafficOnly: true
   }
@@ -301,10 +306,6 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
       }
       secrets: [
         {
-          name: 'storage-connection-string'
-          value: storageConnectionString
-        }
-        {
           name: 'applicationinsights-connection-string'
           value: applicationInsights.properties.ConnectionString
         }
@@ -321,24 +322,24 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
               secretRef: 'applicationinsights-connection-string'
             }
             {
-              name: 'BlobStorage__ConnectionString'
-              secretRef: 'storage-connection-string'
+              name: 'BlobStorage__ServiceUri'
+              value: blobServiceUri
             }
             {
               name: 'BlobStorage__ContainerName'
               value: rawDataContainerName
             }
             {
-              name: 'QueueStorage__ConnectionString'
-              secretRef: 'storage-connection-string'
+              name: 'QueueStorage__ServiceUri'
+              value: queueServiceUri
             }
             {
               name: 'QueueStorage__QueueName'
               value: queueName
             }
             {
-              name: 'TableStorage__ConnectionString'
-              secretRef: 'storage-connection-string'
+              name: 'TableStorage__ServiceUri'
+              value: tableServiceUri
             }
             {
               name: 'TableStorage__TableName'
@@ -400,6 +401,36 @@ resource acrPullRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-
   scope: containerRegistry
   properties: {
     roleDefinitionId: acrPullRoleDefinitionId
+    principalId: containerApp.identity.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+resource storageBlobDataContributorRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(storageAccount.id, containerApp.id, 'storage-blob-data-contributor')
+  scope: storageAccount
+  properties: {
+    roleDefinitionId: storageBlobDataContributorRoleDefinitionId
+    principalId: containerApp.identity.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+resource storageQueueDataContributorRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(storageAccount.id, containerApp.id, 'storage-queue-data-contributor')
+  scope: storageAccount
+  properties: {
+    roleDefinitionId: storageQueueDataContributorRoleDefinitionId
+    principalId: containerApp.identity.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+resource storageTableDataContributorRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(storageAccount.id, containerApp.id, 'storage-table-data-contributor')
+  scope: storageAccount
+  properties: {
+    roleDefinitionId: storageTableDataContributorRoleDefinitionId
     principalId: containerApp.identity.principalId
     principalType: 'ServicePrincipal'
   }

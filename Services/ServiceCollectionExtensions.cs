@@ -1,4 +1,6 @@
 using Azure.Monitor.OpenTelemetry.AspNetCore;
+using Azure.Core;
+using Azure.Identity;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using OpenTelemetry.Instrumentation.AspNetCore;
@@ -108,21 +110,22 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<Microsoft.Extensions.Options.IValidateOptions<BlobStorageOptions>, BlobStorageOptionsValidator>();
         services.AddSingleton<Microsoft.Extensions.Options.IValidateOptions<QueueStorageOptions>, QueueStorageOptionsValidator>();
         services.AddSingleton<Microsoft.Extensions.Options.IValidateOptions<TableStorageOptions>, TableStorageOptionsValidator>();
+        services.AddSingleton<TokenCredential>(_ => new DefaultAzureCredential());
 
         services.AddSingleton(sp =>
         {
             var options = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<BlobStorageOptions>>().Value;
-            return new Azure.Storage.Blobs.BlobServiceClient(options.ConnectionString);
+            return CreateBlobServiceClient(options, sp.GetRequiredService<TokenCredential>());
         });
         services.AddSingleton(sp =>
         {
             var options = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<QueueStorageOptions>>().Value;
-            return new Azure.Storage.Queues.QueueServiceClient(options.ConnectionString);
+            return CreateQueueServiceClient(options, sp.GetRequiredService<TokenCredential>());
         });
         services.AddSingleton(sp =>
         {
             var options = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<TableStorageOptions>>().Value;
-            return new Azure.Data.Tables.TableServiceClient(options.ConnectionString);
+            return CreateTableServiceClient(options, sp.GetRequiredService<TokenCredential>());
         });
 
         services.AddHealthChecks()
@@ -198,6 +201,52 @@ public static class ServiceCollectionExtensions
             configuration["OTEL_SERVICE_VERSION"] ??
             typeof(Program).Assembly.GetName().Version?.ToString() ??
             "unknown";
+    }
+
+    private static Azure.Storage.Blobs.BlobServiceClient CreateBlobServiceClient(
+        BlobStorageOptions options,
+        TokenCredential credential)
+    {
+        if (!string.IsNullOrWhiteSpace(options.ConnectionString))
+        {
+            return new Azure.Storage.Blobs.BlobServiceClient(options.ConnectionString);
+        }
+
+        return new Azure.Storage.Blobs.BlobServiceClient(GetRequiredServiceUri(options.ServiceUri, "BlobStorage:ServiceUri"), credential);
+    }
+
+    private static Azure.Storage.Queues.QueueServiceClient CreateQueueServiceClient(
+        QueueStorageOptions options,
+        TokenCredential credential)
+    {
+        if (!string.IsNullOrWhiteSpace(options.ConnectionString))
+        {
+            return new Azure.Storage.Queues.QueueServiceClient(options.ConnectionString);
+        }
+
+        return new Azure.Storage.Queues.QueueServiceClient(GetRequiredServiceUri(options.ServiceUri, "QueueStorage:ServiceUri"), credential);
+    }
+
+    private static Azure.Data.Tables.TableServiceClient CreateTableServiceClient(
+        TableStorageOptions options,
+        TokenCredential credential)
+    {
+        if (!string.IsNullOrWhiteSpace(options.ConnectionString))
+        {
+            return new Azure.Data.Tables.TableServiceClient(options.ConnectionString);
+        }
+
+        return new Azure.Data.Tables.TableServiceClient(GetRequiredServiceUri(options.ServiceUri, "TableStorage:ServiceUri"), credential);
+    }
+
+    private static Uri GetRequiredServiceUri(string? serviceUri, string settingName)
+    {
+        if (string.IsNullOrWhiteSpace(serviceUri))
+        {
+            throw new InvalidOperationException($"{settingName} is required when no connection string is configured.");
+        }
+
+        return new Uri(serviceUri, UriKind.Absolute);
     }
 
     private static string? NormalizeAzureMonitorConnectionString(string connectionString)
