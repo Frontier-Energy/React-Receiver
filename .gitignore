@@ -16,3 +16,4 @@
 /.azurite
 /node_modules
 ci-build-diag.log
+solution-test.log

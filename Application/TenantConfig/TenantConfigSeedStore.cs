@@ -60,7 +60,7 @@ public sealed class TenantConfigSeedStore : ITenantConfigSeedStore
             .ToArray();
     }
 
-    private static string CreateETag(string tenantId) => $"\"{tenantId}-{DateTime.UtcNow:yyyyMMddHHmmssfff}\"";
+    private static string CreateETag(string tenantId) => $"\"{tenantId}-{Guid.NewGuid():N}\"";
 
     private static TenantConfiguration Map(TenantBootstrapResponse response)
     {

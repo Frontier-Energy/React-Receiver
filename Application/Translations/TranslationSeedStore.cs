@@ -64,5 +64,5 @@ public sealed class TranslationSeedStore : ITranslationSeedStore
             .ToArray();
     }
 
-    private static string CreateETag(string language) => $"\"{language}-{DateTime.UtcNow:yyyyMMddHHmmssfff}\"";
+    private static string CreateETag(string language) => $"\"{language}-{Guid.NewGuid():N}\"";
 }
