@@ -28,7 +28,7 @@ env:
 
 jobs:
   test:
-    name: Test
+    name: Validate
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -41,8 +41,28 @@ jobs:
       - name: Restore
         run: dotnet restore React-Receiver.sln
 
+      - name: Build with warnings as errors
+        run: dotnet build React-Receiver.sln --configuration Release --no-restore /p:TreatWarningsAsErrors=true
+
       - name: Run unit tests
-        run: dotnet test React-Receiver.sln --configuration Release --no-restore /p:TreatWarningsAsErrors=true
+        run: dotnet test React-Receiver.sln --configuration Release --no-build --no-restore /p:TreatWarningsAsErrors=true
+
+      - name: Azure CLI version
+        run: az version
+
+      - name: Ensure Bicep CLI is installed
+        run: az bicep install
+
+      - name: Lint Bicep templates
+        run: |
+          az bicep lint --file infra/main.bicep
+
+      - name: Build Bicep templates
+        run: |
+          az bicep build --file infra/main.bicep
+          for param_file in infra/environments/*.bicepparam; do
+            az bicep build-params --file "$param_file"
+          done
 
   deploy-dev:
     name: Deploy dev
