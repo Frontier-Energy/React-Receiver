@@ -12,7 +12,7 @@ Each deployment should have:
 
 The workflow uses an image tag in this format:
 
-- `main-<run_number>-<short_sha>`
+- `<environment>-<run_number>-<short_sha>`
 
 It also keeps:
 
@@ -25,6 +25,8 @@ The deployed revision receives:
 - revision suffix: `r<run_number>-<short_sha>`
 - `APP_VERSION=<image_tag>`
 - `GIT_SHA=<full_sha>`
+
+For `push` events on `main`, the workflow promotes sequentially through `dev`, `uat`, and `prod`. For `workflow_dispatch`, it deploys only the selected environment.
 
 ## Required GitHub environment secrets
 

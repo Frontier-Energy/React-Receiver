@@ -58,9 +58,18 @@ For local development, keep secrets out of source control and use one of:
 - local environment variables
 - `dotnet user-secrets`
 
+## Deployment flow
+
+- `pull_request` to `main`: runs tests only
+- `push` to `main`: runs tests, then deploys `dev`, then `uat`, then `prod`
+- `workflow_dispatch`: deploys only the selected target environment
+
+GitHub Environment protections still apply. If `uat` or `prod` has required reviewers or wait timers configured in GitHub, those gates will pause the automatic promotion until they are satisfied.
+
 ## First deployment checklist
 
 1. Update `apimPublisherName` and `apimPublisherEmail` in each `.bicepparam` file.
 2. Create the GitHub Environments and add the required Azure credentials.
 3. Run the workflow for `dev`.
 4. Validate the APIM gateway URL output and Container App URL output from the infrastructure deployment.
+5. Push to `main` when you want the full `dev -> uat -> prod` promotion chain to run.
