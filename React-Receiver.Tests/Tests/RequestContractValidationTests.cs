@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.IO;
+using System.Text;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using React_Receiver.Models;
@@ -95,6 +96,39 @@ public sealed class RequestContractValidationTests
         Assert.Contains(modelState, item => item.Key == nameof(ReceiveInspectionFormRequest.Payload));
         Assert.Contains(modelState, item => item.Key == $"{nameof(ReceiveInspectionFormRequest.Files)}[0]");
         Assert.Contains(modelState, item => item.Key == $"{nameof(ReceiveInspectionFormRequest.Files)}[1]");
+    }
+
+    [Fact]
+    public void TryValidateFileSignature_RejectsMismatchedBinaryContent()
+    {
+        var bytes = Encoding.UTF8.GetBytes("not actually a jpeg");
+
+        var valid = ReceiveInspectionFormRequest.TryValidateFileSignature(
+            "photo.jpg",
+            "image/jpeg",
+            bytes,
+            out _,
+            out var errorMessage);
+
+        Assert.False(valid);
+        Assert.Contains("does not match", errorMessage);
+    }
+
+    [Fact]
+    public void TryValidateFileSignature_AcceptsMatchingPdfContent()
+    {
+        var bytes = Encoding.ASCII.GetBytes("%PDF-1.7\n");
+
+        var valid = ReceiveInspectionFormRequest.TryValidateFileSignature(
+            "report.pdf",
+            "application/pdf",
+            bytes,
+            out var detectedContentType,
+            out var errorMessage);
+
+        Assert.True(valid);
+        Assert.Equal("application/pdf", detectedContentType);
+        Assert.Equal(string.Empty, errorMessage);
     }
 
     private static IReadOnlyList<ValidationResult> Validate(object model)

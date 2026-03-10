@@ -119,6 +119,18 @@ public sealed class StorageStartupValidationTests
         Assert.Contains("TableStorage:TableName", missing);
     }
 
+    [Fact]
+    public void BlobStorageHealthCheck_RequiresQuarantineContainer()
+    {
+        var containers = BlobStorageHealthCheck.GetRequiredContainerNames(new BlobStorageOptions
+        {
+            ContainerName = "payloads"
+        });
+
+        Assert.Contains(StorageDependencyNames.FilesQuarantineContainerName, containers);
+        Assert.Contains(StorageDependencyNames.FilesContainerName, containers);
+    }
+
     [Theory]
     [InlineData("Infrastructure/Inspections/AzureInspectionRepository.cs")]
     [InlineData("Infrastructure/TenantConfig/AzureTableTenantConfigRepository.cs")]

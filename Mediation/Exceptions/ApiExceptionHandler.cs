@@ -33,6 +33,12 @@ public sealed class ApiExceptionHandler : IExceptionHandler
                 Detail = duplicateInspectionSessionException.Message,
                 Status = StatusCodes.Status409Conflict
             },
+            InspectionFileSecurityException inspectionFileSecurityException => new ProblemDetails
+            {
+                Title = "File upload rejected",
+                Detail = inspectionFileSecurityException.Message,
+                Status = StatusCodes.Status400BadRequest
+            },
             FormSchemaBlobContentException => new ProblemDetails
             {
                 Title = "Schema content unavailable",

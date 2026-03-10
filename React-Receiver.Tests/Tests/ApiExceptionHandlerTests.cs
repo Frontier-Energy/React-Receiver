@@ -62,6 +62,23 @@ public sealed class ApiExceptionHandlerTests
     }
 
     [Fact]
+    public async Task TryHandleAsync_ReturnsBadRequestProblem_ForRejectedFiles()
+    {
+        var problemDetailsService = new CapturingProblemDetailsService();
+        var handler = new ApiExceptionHandler(problemDetailsService);
+        var httpContext = new DefaultHttpContext();
+
+        var handled = await handler.TryHandleAsync(
+            httpContext,
+            new InspectionFileSecurityException("File 'payload.pdf' was rejected."),
+            CancellationToken.None);
+
+        Assert.True(handled);
+        Assert.Equal(StatusCodes.Status400BadRequest, httpContext.Response.StatusCode);
+        Assert.Equal("File upload rejected", problemDetailsService.LastProblem?.Title);
+    }
+
+    [Fact]
     public async Task TryHandleAsync_ReturnsPreconditionRequiredProblem_ForMissingIfMatch()
     {
         var problemDetailsService = new CapturingProblemDetailsService();

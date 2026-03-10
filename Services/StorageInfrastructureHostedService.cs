@@ -37,6 +37,7 @@ public sealed class StorageInfrastructureHostedService : IHostedService
     public async Task StartAsync(CancellationToken cancellationToken)
     {
         await EnsureBlobContainerAsync(_blobOptions.ContainerName, "EnsurePrimaryBlobContainer", cancellationToken);
+        await EnsureBlobContainerAsync(StorageDependencyNames.FilesQuarantineContainerName, "EnsureInspectionFilesQuarantineContainer", cancellationToken);
         await EnsureBlobContainerAsync(StorageDependencyNames.FilesContainerName, "EnsureInspectionFilesContainer", cancellationToken);
         await EnsureQueueAsync(_queueOptions.QueueName, "EnsureInspectionQueue", cancellationToken);
 

@@ -120,6 +120,7 @@ public sealed class BlobStorageHealthCheck : IHealthCheck
         return new[]
         {
             options.ContainerName?.Trim(),
+            StorageDependencyNames.FilesQuarantineContainerName,
             StorageDependencyNames.FilesContainerName
         }
         .Where(static name => !string.IsNullOrWhiteSpace(name))

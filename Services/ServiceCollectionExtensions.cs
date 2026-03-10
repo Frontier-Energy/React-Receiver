@@ -121,6 +121,8 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IBootstrapDataProvider, FileBootstrapDataProvider>();
         services.AddSingleton<IAuditEventLogger, AuditEventLogger>();
         services.AddSingleton<IStorageOperationObserver, StorageOperationObserver>();
+        services.AddSingleton<IInspectionFileMalwareScanner, SignatureInspectionFileMalwareScanner>();
+        services.AddSingleton<IInspectionFileSecurityInspector, InspectionFileSecurityInspector>();
         services.AddScoped<IRequestTransaction, NoOpRequestTransaction>();
         return services;
     }

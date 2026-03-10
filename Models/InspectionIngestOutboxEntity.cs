@@ -16,6 +16,7 @@ public sealed class InspectionIngestOutboxEntity : ITableEntity
     public string FilesJson { get; set; } = "[]";
     public bool PayloadStaged { get; set; }
     public bool FilesStaged { get; set; }
+    public bool FilesVerified { get; set; }
     public bool MetadataWritten { get; set; }
     public bool QueueMessageSent { get; set; }
     public bool Completed { get; set; }
