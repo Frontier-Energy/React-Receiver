@@ -179,6 +179,11 @@ public static class ServiceCollectionExtensions
                 {
                     options.MaxConcurrentSessions = 8;
                 }
+
+                if (options.PoisonThreshold <= 0)
+                {
+                    options.PoisonThreshold = 10;
+                }
             });
 
         services.AddHostedService<StartupHealthCheckHostedService>();

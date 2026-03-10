@@ -50,7 +50,7 @@ public sealed class InspectionIngestRetryHostedServiceTests
                     throw new InvalidOperationException("simulated failure");
                 }
 
-                return false;
+                return new InspectionIngestProcessResult(true, "Completed", false, 0, string.Empty);
             }
             finally
             {
@@ -100,7 +100,7 @@ public sealed class InspectionIngestRetryHostedServiceTests
                 backlogDrained.TrySetResult();
             }
 
-            return Task.FromResult<object?>(false);
+            return Task.FromResult<object?>(new InspectionIngestProcessResult(true, "Completed", false, 0, string.Empty));
         });
 
         using var service = CreateHostedService(
@@ -181,7 +181,7 @@ public sealed class InspectionIngestRetryHostedServiceTests
             throw new NotSupportedException();
         }
 
-        public Task<bool> ProcessPendingAsync(string sessionId, CancellationToken cancellationToken)
+        public Task<InspectionIngestProcessResult> ProcessPendingAsync(string sessionId, CancellationToken cancellationToken)
         {
             throw new NotSupportedException();
         }
@@ -192,6 +192,21 @@ public sealed class InspectionIngestRetryHostedServiceTests
         }
 
         public Task<InspectionFileStreamResult?> GetFileAsync(string sessionId, string fileName, CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<IReadOnlyCollection<InspectionIngestOutboxSessionSummary>> GetOutboxSessionsAsync(string? status, int limit, CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<InspectionIngestOutboxSessionDetail?> GetOutboxSessionAsync(string sessionId, CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<ReplayInspectionIngestSessionResponse> ReplayOutboxSessionAsync(string sessionId, bool force, CancellationToken cancellationToken)
         {
             throw new NotSupportedException();
         }

@@ -20,6 +20,7 @@ public sealed class InspectionIngestOutboxEntity : ITableEntity
     public bool MetadataWritten { get; set; }
     public bool QueueMessageSent { get; set; }
     public bool Completed { get; set; }
+    public bool TerminalFailure { get; set; }
     public bool Processing { get; set; }
     public int RetryCount { get; set; }
     public string Status { get; set; } = "Received";
@@ -27,6 +28,7 @@ public sealed class InspectionIngestOutboxEntity : ITableEntity
     public DateTimeOffset? LastAttemptAtUtc { get; set; }
     public DateTimeOffset? NextAttemptAtUtc { get; set; }
     public DateTimeOffset? LockedUntilUtc { get; set; }
+    public DateTimeOffset? PoisonedAtUtc { get; set; }
     public DateTimeOffset? Timestamp { get; set; }
     public ETag ETag { get; set; }
 }

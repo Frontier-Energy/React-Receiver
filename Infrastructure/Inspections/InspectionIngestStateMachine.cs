@@ -7,6 +7,11 @@ namespace React_Receiver.Infrastructure.Inspections;
 
 internal static class InspectionIngestStateMachine
 {
+    internal const string ReplayQueuedStatus = "ReplayQueued";
+    internal const string PoisonedStatus = "Poisoned";
+    internal const string RejectedStatus = "Rejected";
+    internal const string CompensatedStatus = "Compensated";
+
     internal static ReceiveInspectionRequest NormalizeRequest(ReceiveInspectionRequest request)
     {
         var sessionId = string.IsNullOrWhiteSpace(request.SessionId)
@@ -108,6 +113,7 @@ internal static class InspectionIngestStateMachine
     {
         return entity is not null &&
                !entity.Completed &&
+               !entity.TerminalFailure &&
                entity.PayloadStaged &&
                entity.FilesStaged &&
                !entity.Processing &&
@@ -118,6 +124,7 @@ internal static class InspectionIngestStateMachine
     internal static bool IsPending(InspectionIngestOutboxEntity entity, DateTimeOffset nowUtc)
     {
         return !entity.Completed &&
+               !entity.TerminalFailure &&
                entity.PayloadStaged &&
                entity.FilesStaged &&
                !entity.Processing &&
@@ -129,7 +136,9 @@ internal static class InspectionIngestStateMachine
     {
         entity.PayloadStaged = true;
         entity.Status = "PayloadStaged";
+        entity.TerminalFailure = false;
         entity.LastError = string.Empty;
+        entity.PoisonedAtUtc = null;
         entity.NextAttemptAtUtc = nowUtc;
     }
 
@@ -137,7 +146,9 @@ internal static class InspectionIngestStateMachine
     {
         entity.FilesStaged = true;
         entity.Status = "Quarantined";
+        entity.TerminalFailure = false;
         entity.LastError = string.Empty;
+        entity.PoisonedAtUtc = null;
         entity.NextAttemptAtUtc = nowUtc;
     }
 
@@ -145,7 +156,9 @@ internal static class InspectionIngestStateMachine
     {
         entity.FilesVerified = true;
         entity.Status = "FilesVerified";
+        entity.TerminalFailure = false;
         entity.LastError = string.Empty;
+        entity.PoisonedAtUtc = null;
         entity.NextAttemptAtUtc = nowUtc;
     }
 
@@ -157,21 +170,25 @@ internal static class InspectionIngestStateMachine
         entity.MetadataWritten = false;
         entity.QueueMessageSent = false;
         entity.Completed = false;
+        entity.TerminalFailure = true;
         entity.Processing = false;
         entity.LockedUntilUtc = null;
-        entity.Status = "Compensated";
+        entity.Status = CompensatedStatus;
         entity.LastError = Truncate(exception.Message, 2048);
         entity.NextAttemptAtUtc = null;
+        entity.PoisonedAtUtc = null;
     }
 
     internal static void MarkRejected(InspectionIngestOutboxEntity entity, Exception exception)
     {
         entity.Completed = false;
+        entity.TerminalFailure = true;
         entity.Processing = false;
         entity.LockedUntilUtc = null;
-        entity.Status = "Rejected";
+        entity.Status = RejectedStatus;
         entity.LastError = Truncate(exception.Message, 2048);
         entity.NextAttemptAtUtc = null;
+        entity.PoisonedAtUtc = null;
     }
 
     internal static void MarkLeaseAcquired(
@@ -189,7 +206,9 @@ internal static class InspectionIngestStateMachine
     {
         entity.MetadataWritten = true;
         entity.Status = "MetadataWritten";
+        entity.TerminalFailure = false;
         entity.LastError = string.Empty;
+        entity.PoisonedAtUtc = null;
         entity.NextAttemptAtUtc = nowUtc;
     }
 
@@ -201,22 +220,62 @@ internal static class InspectionIngestStateMachine
     internal static void MarkCompleted(InspectionIngestOutboxEntity entity)
     {
         entity.Completed = true;
+        entity.TerminalFailure = false;
         entity.Processing = false;
         entity.LockedUntilUtc = null;
         entity.Status = "Completed";
         entity.LastError = string.Empty;
+        entity.PoisonedAtUtc = null;
         entity.NextAttemptAtUtc = null;
     }
 
-    internal static void MarkRetryScheduled(InspectionIngestOutboxEntity entity, Exception exception, DateTimeOffset nowUtc)
+    internal static void MarkRetryScheduled(
+        InspectionIngestOutboxEntity entity,
+        Exception exception,
+        DateTimeOffset nowUtc,
+        int poisonThreshold)
     {
         entity.Completed = false;
         entity.Processing = false;
         entity.LockedUntilUtc = null;
         entity.RetryCount++;
-        entity.Status = "PendingRetry";
         entity.LastError = Truncate(exception.Message, 2048);
+
+        if (entity.RetryCount >= poisonThreshold)
+        {
+            entity.TerminalFailure = true;
+            entity.Status = PoisonedStatus;
+            entity.PoisonedAtUtc = nowUtc;
+            entity.NextAttemptAtUtc = null;
+            return;
+        }
+
+        entity.TerminalFailure = false;
+        entity.PoisonedAtUtc = null;
+        entity.Status = "PendingRetry";
         entity.NextAttemptAtUtc = nowUtc.Add(GetRetryDelay(entity.RetryCount));
+    }
+
+    internal static bool CanReplay(InspectionIngestOutboxEntity entity)
+    {
+        return !entity.Completed &&
+               entity.PayloadStaged &&
+               entity.FilesStaged;
+    }
+
+    internal static void MarkReplayQueued(InspectionIngestOutboxEntity entity, DateTimeOffset nowUtc, bool force)
+    {
+        entity.TerminalFailure = false;
+        entity.Processing = false;
+        entity.LockedUntilUtc = null;
+        entity.PoisonedAtUtc = null;
+        entity.NextAttemptAtUtc = nowUtc;
+        entity.Status = ReplayQueuedStatus;
+
+        if (force)
+        {
+            entity.LastAttemptAtUtc = nowUtc;
+        }
     }
 
     internal static ReceiveInspectionResponse BuildResponse(ReceiveInspectionRequest request)

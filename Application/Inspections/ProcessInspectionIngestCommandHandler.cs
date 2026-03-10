@@ -1,9 +1,10 @@
 using MediatR;
 using React_Receiver.Infrastructure.Inspections;
+using React_Receiver.Models;
 
 namespace React_Receiver.Application.Inspections;
 
-public sealed class ProcessInspectionIngestCommandHandler : IRequestHandler<ProcessInspectionIngestCommand, bool>
+public sealed class ProcessInspectionIngestCommandHandler : IRequestHandler<ProcessInspectionIngestCommand, InspectionIngestProcessResult>
 {
     private readonly IInspectionRepository _inspectionRepository;
 
@@ -12,7 +13,7 @@ public sealed class ProcessInspectionIngestCommandHandler : IRequestHandler<Proc
         _inspectionRepository = inspectionRepository;
     }
 
-    public Task<bool> Handle(ProcessInspectionIngestCommand request, CancellationToken cancellationToken)
+    public Task<InspectionIngestProcessResult> Handle(ProcessInspectionIngestCommand request, CancellationToken cancellationToken)
     {
         return _inspectionRepository.ProcessPendingAsync(request.SessionId, cancellationToken);
     }

@@ -17,6 +17,23 @@ public sealed class GetInspectionFileRequest
     public string? FileName { get; init; }
 }
 
+public sealed class GetInspectionIngestOutboxSessionRequest
+{
+    [Required(AllowEmptyStrings = false)]
+    public string? SessionId { get; init; }
+}
+
+public sealed class GetInspectionIngestOutboxRequest
+{
+    public string? Status { get; init; }
+    public int Limit { get; init; } = 50;
+}
+
+public sealed class ReplayInspectionIngestOutboxRequest
+{
+    public bool Force { get; init; }
+}
+
 public sealed class FormSchemaRouteRequest
 {
     [Required(AllowEmptyStrings = false)]

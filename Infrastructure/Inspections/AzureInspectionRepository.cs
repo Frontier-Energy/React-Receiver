@@ -14,6 +14,7 @@ public sealed class AzureInspectionRepository : IInspectionRepository
     private readonly AzureInspectionArtifactStore _artifactStore;
     private readonly AzureInspectionFinalizer _finalizer;
     private readonly AzureInspectionOutboxStore _outboxStore;
+    private readonly InspectionIngestRetryOptions _retryOptions;
 
     public AzureInspectionRepository(
         BlobServiceClient blobServiceClient,
@@ -22,6 +23,7 @@ public sealed class AzureInspectionRepository : IInspectionRepository
         Microsoft.Extensions.Options.IOptions<BlobStorageOptions> blobOptions,
         Microsoft.Extensions.Options.IOptions<QueueStorageOptions> queueOptions,
         Microsoft.Extensions.Options.IOptions<TableStorageOptions> tableOptions,
+        Microsoft.Extensions.Options.IOptions<InspectionIngestRetryOptions> retryOptions,
         IStorageOperationObserver storageObserver,
         IInspectionFileSecurityInspector fileSecurityInspector)
     {
@@ -42,6 +44,7 @@ public sealed class AzureInspectionRepository : IInspectionRepository
             tableServiceClient,
             tableOptions.Value,
             storageObserver);
+        _retryOptions = retryOptions.Value;
     }
 
     public async Task<ReceiveInspectionResponse> PrepareAsync(
@@ -99,17 +102,17 @@ public sealed class AzureInspectionRepository : IInspectionRepository
         return InspectionIngestStateMachine.BuildResponse(normalizedRequest);
     }
 
-    public async Task<bool> ProcessPendingAsync(string sessionId, CancellationToken cancellationToken)
+    public async Task<InspectionIngestProcessResult> ProcessPendingAsync(string sessionId, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(sessionId))
         {
-            return false;
+            return new InspectionIngestProcessResult(false, "InvalidSession", false, 0, string.Empty);
         }
 
         var outboxEntity = await _outboxStore.TryAcquireLeaseAsync(sessionId, ProcessingLeaseDuration, cancellationToken);
         if (outboxEntity is null)
         {
-            return false;
+            return new InspectionIngestProcessResult(false, "NotReady", false, 0, string.Empty);
         }
 
         try
@@ -136,19 +139,23 @@ public sealed class AzureInspectionRepository : IInspectionRepository
 
             InspectionIngestStateMachine.MarkCompleted(outboxEntity);
             await _outboxStore.SaveAsync(outboxEntity, cancellationToken);
-            return true;
+            return BuildProcessResult(true, outboxEntity);
         }
         catch (InspectionFileSecurityException ex)
         {
             InspectionIngestStateMachine.MarkRejected(outboxEntity, ex);
             await _outboxStore.SaveAsync(outboxEntity, cancellationToken);
-            return false;
+            return BuildProcessResult(false, outboxEntity);
         }
         catch (Exception ex)
         {
-            InspectionIngestStateMachine.MarkRetryScheduled(outboxEntity, ex, DateTimeOffset.UtcNow);
+            InspectionIngestStateMachine.MarkRetryScheduled(
+                outboxEntity,
+                ex,
+                DateTimeOffset.UtcNow,
+                _retryOptions.PoisonThreshold);
             await _outboxStore.SaveAsync(outboxEntity, cancellationToken);
-            return false;
+            return BuildProcessResult(false, outboxEntity);
         }
     }
 
@@ -170,5 +177,36 @@ public sealed class AzureInspectionRepository : IInspectionRepository
         CancellationToken cancellationToken)
     {
         return _artifactStore.GetFileAsync(sessionId, fileName, cancellationToken);
+    }
+
+    public Task<IReadOnlyCollection<InspectionIngestOutboxSessionSummary>> GetOutboxSessionsAsync(
+        string? status,
+        int limit,
+        CancellationToken cancellationToken)
+    {
+        return _outboxStore.GetSessionsAsync(status, limit, cancellationToken);
+    }
+
+    public Task<InspectionIngestOutboxSessionDetail?> GetOutboxSessionAsync(string sessionId, CancellationToken cancellationToken)
+    {
+        return _outboxStore.GetSessionAsync(sessionId, cancellationToken);
+    }
+
+    public Task<ReplayInspectionIngestSessionResponse> ReplayOutboxSessionAsync(
+        string sessionId,
+        bool force,
+        CancellationToken cancellationToken)
+    {
+        return _outboxStore.ReplayAsync(sessionId, force, cancellationToken);
+    }
+
+    private static InspectionIngestProcessResult BuildProcessResult(bool processed, InspectionIngestOutboxEntity entity)
+    {
+        return new InspectionIngestProcessResult(
+            processed,
+            entity.Status,
+            entity.TerminalFailure,
+            entity.RetryCount,
+            entity.LastError);
     }
 }

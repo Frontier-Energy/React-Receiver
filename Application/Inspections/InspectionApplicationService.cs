@@ -28,7 +28,22 @@ public sealed class InspectionApplicationService : IInspectionApplicationService
 
         try
         {
-            await _sender.Send(new ProcessInspectionIngestCommand(response.SessionId), cancellationToken);
+            var result = await _sender.Send(new ProcessInspectionIngestCommand(response.SessionId), cancellationToken);
+            if (result.TerminalFailure)
+            {
+                _logger.LogError(
+                    "Inspection ingest session {SessionId} entered terminal state {Status}: {LastError}",
+                    response.SessionId,
+                    result.Status,
+                    result.LastError);
+            }
+            else if (!result.Processed)
+            {
+                _logger.LogWarning(
+                    "Inspection ingest finalization will continue asynchronously for session {SessionId}. Current status: {Status}",
+                    response.SessionId,
+                    result.Status);
+            }
         }
         catch (Exception ex)
         {

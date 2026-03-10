@@ -169,6 +169,7 @@ Retry hosted service behavior:
 - polls every 10 seconds
 - requests up to 25 pending session IDs at a time
 - sends `ProcessInspectionIngestCommand` for each pending session
+- logs explicit terminal failures when a session is poisoned or rejected
 
 ## Retry Timing
 
@@ -177,11 +178,26 @@ On finalization failure:
 - `RetryCount` increments
 - status becomes `PendingRetry`
 - `NextAttemptAtUtc` is set using exponential backoff
+- once `RetryCount` reaches the configured poison threshold, status becomes `Poisoned` and automatic retries stop
 
 Current backoff implementation:
 
 - `2^retryCount` seconds
 - capped at 300 seconds
+
+## Admin Surface
+
+Operators can inspect and re-drive the outbox through:
+
+- `GET /inspections/admin/outbox`
+- `GET /inspections/admin/outbox/{sessionId}`
+- `POST /inspections/admin/outbox/{sessionId}/replay`
+
+Replay behavior:
+
+- sessions with staged payload and file artifacts can be replayed
+- terminal sessions require `force=true` in the replay request body
+- compensated sessions remain inspect-only because the staged artifacts were removed during compensation
 
 ## What The Client Sees
 

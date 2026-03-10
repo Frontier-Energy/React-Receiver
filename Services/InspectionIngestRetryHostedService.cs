@@ -100,7 +100,16 @@ public sealed class InspectionIngestRetryHostedService : BackgroundService
         {
             using var scope = _serviceScopeFactory.CreateScope();
             var sender = scope.ServiceProvider.GetRequiredService<ISender>();
-            await sender.Send(new ProcessInspectionIngestCommand(sessionId), cancellationToken);
+            var result = await sender.Send(new ProcessInspectionIngestCommand(sessionId), cancellationToken);
+            if (result.TerminalFailure)
+            {
+                _logger.LogError(
+                    "Inspection ingest session {SessionId} entered terminal state {Status} after {RetryCount} retries: {LastError}",
+                    sessionId,
+                    result.Status,
+                    result.RetryCount,
+                    result.LastError);
+            }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {

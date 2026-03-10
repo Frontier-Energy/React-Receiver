@@ -84,7 +84,7 @@ public sealed class InspectionIngestStateMachineTests
         };
         var now = DateTimeOffset.UtcNow;
 
-        InspectionIngestStateMachine.MarkRetryScheduled(entity, new InvalidOperationException("boom"), now);
+        InspectionIngestStateMachine.MarkRetryScheduled(entity, new InvalidOperationException("boom"), now, poisonThreshold: 10);
 
         Assert.Equal(9, entity.RetryCount);
         Assert.False(entity.Processing);
@@ -92,6 +92,28 @@ public sealed class InspectionIngestStateMachineTests
         Assert.Equal("PendingRetry", entity.Status);
         Assert.Equal("boom", entity.LastError);
         Assert.Equal(now.AddSeconds(256), entity.NextAttemptAtUtc);
+    }
+
+    [Fact]
+    public void MarkRetryScheduled_MarksPoisoned_WhenThresholdReached()
+    {
+        var entity = new InspectionIngestOutboxEntity
+        {
+            RetryCount = 2,
+            PayloadStaged = true,
+            FilesStaged = true,
+            Processing = true,
+            LockedUntilUtc = DateTimeOffset.UtcNow.AddMinutes(1)
+        };
+        var now = DateTimeOffset.UtcNow;
+
+        InspectionIngestStateMachine.MarkRetryScheduled(entity, new InvalidOperationException("boom"), now, poisonThreshold: 3);
+
+        Assert.Equal(3, entity.RetryCount);
+        Assert.True(entity.TerminalFailure);
+        Assert.Equal(InspectionIngestStateMachine.PoisonedStatus, entity.Status);
+        Assert.Equal(now, entity.PoisonedAtUtc);
+        Assert.Null(entity.NextAttemptAtUtc);
     }
 
     [Fact]
@@ -127,5 +149,30 @@ public sealed class InspectionIngestStateMachineTests
         Assert.True(entity.FilesVerified);
         Assert.Equal("FilesVerified", entity.Status);
         Assert.Equal(now, entity.NextAttemptAtUtc);
+    }
+
+    [Fact]
+    public void MarkReplayQueued_ClearsTerminalFailureAndSchedulesImmediateRetry()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var entity = new InspectionIngestOutboxEntity
+        {
+            PayloadStaged = true,
+            FilesStaged = true,
+            TerminalFailure = true,
+            Status = InspectionIngestStateMachine.PoisonedStatus,
+            Processing = true,
+            LockedUntilUtc = now.AddMinutes(1),
+            PoisonedAtUtc = now
+        };
+
+        InspectionIngestStateMachine.MarkReplayQueued(entity, now, force: true);
+
+        Assert.False(entity.TerminalFailure);
+        Assert.False(entity.Processing);
+        Assert.Null(entity.LockedUntilUtc);
+        Assert.Null(entity.PoisonedAtUtc);
+        Assert.Equal(now, entity.NextAttemptAtUtc);
+        Assert.Equal(InspectionIngestStateMachine.ReplayQueuedStatus, entity.Status);
     }
 }
