@@ -1,0 +1,552 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "React-Receiver API",
+    "version": "v1"
+  },
+  "paths": {
+    "/auth/login": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Login",
+        "operationId": "Auth_Login",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Login response"
+          }
+        }
+      }
+    },
+    "/auth/register": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Register",
+        "operationId": "Auth_Register",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Register response"
+          }
+        }
+      }
+    },
+    "/users/lookup": {
+      "post": {
+        "tags": ["Users"],
+        "summary": "Lookup user",
+        "operationId": "Users_GetUser",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserLookupRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "User found"
+          },
+          "404": {
+            "description": "User not found"
+          }
+        }
+      }
+    },
+    "/users/me": {
+      "get": {
+        "tags": ["Users"],
+        "summary": "Get current user",
+        "operationId": "Users_GetCurrentUser",
+        "responses": {
+          "200": {
+            "description": "Current user"
+          }
+        }
+      }
+    },
+    "/inspections": {
+      "post": {
+        "tags": ["Inspections"],
+        "summary": "Receive inspection",
+        "operationId": "Inspections_ReceiveInspection",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/ReceiveInspectionForm"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Inspection accepted"
+          }
+        }
+      }
+    },
+    "/inspections/{sessionId}": {
+      "get": {
+        "tags": ["Inspections"],
+        "summary": "Get inspection",
+        "operationId": "Inspections_GetInspection",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SessionId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Inspection found"
+          },
+          "404": {
+            "description": "Inspection not found"
+          }
+        }
+      }
+    },
+    "/inspections/{sessionId}/files/{fileName}": {
+      "get": {
+        "tags": ["Inspections"],
+        "summary": "Get inspection file",
+        "operationId": "Inspections_GetFile",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SessionId"
+          },
+          {
+            "$ref": "#/components/parameters/FileName"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "File content"
+          },
+          "404": {
+            "description": "File not found"
+          }
+        }
+      }
+    },
+    "/inspections/admin/outbox": {
+      "get": {
+        "tags": ["InspectionOutboxAdmin"],
+        "summary": "List outbox sessions",
+        "operationId": "InspectionIngestOutboxAdmin_GetSessions",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Outbox sessions"
+          }
+        }
+      }
+    },
+    "/inspections/admin/outbox/{sessionId}": {
+      "get": {
+        "tags": ["InspectionOutboxAdmin"],
+        "summary": "Get outbox session",
+        "operationId": "InspectionIngestOutboxAdmin_GetSession",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SessionId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Outbox session"
+          },
+          "404": {
+            "description": "Session not found"
+          }
+        }
+      }
+    },
+    "/inspections/admin/outbox/{sessionId}/replay": {
+      "post": {
+        "tags": ["InspectionOutboxAdmin"],
+        "summary": "Replay outbox session",
+        "operationId": "InspectionIngestOutboxAdmin_ReplaySession",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SessionId"
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReplayRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Replay accepted"
+          },
+          "404": {
+            "description": "Session not found"
+          },
+          "409": {
+            "description": "Replay rejected"
+          }
+        }
+      }
+    },
+    "/form-schemas": {
+      "get": {
+        "tags": ["FormSchemas"],
+        "summary": "List form schemas",
+        "operationId": "FormSchemas_ListFormSchemas",
+        "responses": {
+          "200": {
+            "description": "Form schema catalog"
+          }
+        }
+      }
+    },
+    "/form-schemas/{formType}": {
+      "get": {
+        "tags": ["FormSchemas"],
+        "summary": "Get form schema",
+        "operationId": "FormSchemas_GetFormSchema",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/FormType"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Form schema"
+          },
+          "404": {
+            "description": "Form schema not found"
+          }
+        }
+      },
+      "put": {
+        "tags": ["FormSchemas"],
+        "summary": "Upsert form schema",
+        "operationId": "FormSchemas_UpsertFormSchema",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/FormType"
+          },
+          {
+            "$ref": "#/components/parameters/IfMatch"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated"
+          },
+          "201": {
+            "description": "Created"
+          }
+        }
+      }
+    },
+    "/translations/{language}": {
+      "get": {
+        "tags": ["Translations"],
+        "summary": "Get translations",
+        "operationId": "Translations_GetTranslations",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Language"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Translations"
+          },
+          "404": {
+            "description": "Translations not found"
+          }
+        }
+      },
+      "put": {
+        "tags": ["Translations"],
+        "summary": "Upsert translations",
+        "operationId": "Translations_UpsertTranslations",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Language"
+          },
+          {
+            "$ref": "#/components/parameters/IfMatch"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated"
+          },
+          "201": {
+            "description": "Created"
+          }
+        }
+      }
+    },
+    "/tenant-config": {
+      "get": {
+        "tags": ["TenantConfig"],
+        "summary": "Get tenant config",
+        "operationId": "TenantConfig_GetTenantConfig",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tenant config"
+          },
+          "404": {
+            "description": "Tenant config not found"
+          }
+        }
+      }
+    },
+    "/tenant-config/{tenantId}": {
+      "put": {
+        "tags": ["TenantConfig"],
+        "summary": "Upsert tenant config",
+        "operationId": "TenantConfig_UpsertTenantConfig",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantId"
+          },
+          {
+            "$ref": "#/components/parameters/IfMatch"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated"
+          },
+          "201": {
+            "description": "Created"
+          }
+        }
+      }
+    },
+    "/health/live": {
+      "get": {
+        "tags": ["Health"],
+        "summary": "Liveness check",
+        "operationId": "Health_Live",
+        "responses": {
+          "200": {
+            "description": "Healthy"
+          }
+        }
+      }
+    },
+    "/health/ready": {
+      "get": {
+        "tags": ["Health"],
+        "summary": "Readiness check",
+        "operationId": "Health_Ready",
+        "responses": {
+          "200": {
+            "description": "Ready"
+          }
+        }
+      }
+    },
+    "/health/startup": {
+      "get": {
+        "tags": ["Health"],
+        "summary": "Startup check",
+        "operationId": "Health_Startup",
+        "responses": {
+          "200": {
+            "description": "Started"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "parameters": {
+      "FileName": {
+        "name": "fileName",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      },
+      "FormType": {
+        "name": "formType",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      },
+      "IfMatch": {
+        "name": "If-Match",
+        "in": "header",
+        "required": false,
+        "schema": {
+          "type": "string"
+        }
+      },
+      "Language": {
+        "name": "language",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      },
+      "SessionId": {
+        "name": "sessionId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      },
+      "TenantId": {
+        "name": "tenantId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      }
+    },
+    "schemas": {
+      "LoginRequest": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string"
+          }
+        }
+      },
+      "ReceiveInspectionForm": {
+        "type": "object",
+        "properties": {
+          "payload": {
+            "type": "string"
+          },
+          "files": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "binary"
+            }
+          }
+        }
+      },
+      "RegisterRequest": {
+        "type": "object",
+        "properties": {
+          "firstName": {
+            "type": "string"
+          },
+          "lastName": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          }
+        }
+      },
+      "ReplayRequest": {
+        "type": "object",
+        "properties": {
+          "force": {
+            "type": "boolean"
+          }
+        }
+      },
+      "UserLookupRequest": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

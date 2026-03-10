@@ -38,6 +38,7 @@ function Invoke-AzureCli {
 }
 
 Assert-CommandAvailable -CommandName 'az'
+Assert-CommandAvailable -CommandName 'dotnet'
 
 if (-not (Test-Path $templateFile)) {
     throw "Template file not found: $templateFile"
@@ -48,6 +49,12 @@ if (-not (Test-Path $parameterFile)) {
 }
 
 Set-Location $repoRoot
+
+Write-Host "Generating OpenAPI contract..."
+& powershell -ExecutionPolicy Bypass -File (Join-Path $repoRoot 'scripts\Generate-OpenApi.ps1') -Configuration Release
+if ($LASTEXITCODE -ne 0) {
+    throw 'OpenAPI generation failed.'
+}
 
 Write-Host "Checking Azure login state..."
 & az account show --output none 2>$null

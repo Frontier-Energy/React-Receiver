@@ -36,14 +36,20 @@ Resources that must be globally unique, such as Storage, ACR, and APIM, add a de
 
 ## APIM
 
-API Management is provisioned with an open gateway configuration:
+API Management is provisioned from the application OpenAPI contract:
 
 - Azure-managed default hostname only
-- no subscription key requirement
-- no auth policy
-- wildcard operations for common HTTP verbs that forward to the Container App backend
+- explicit imported operations from `infra/apim/openapi.v1.json`
+- API-level policy enforcement for bearer auth header presence
+- rate limiting
+- request body size enforcement
+- no subscription key requirement by default
 
-This is intentionally permissive for now. Tightening backend ingress and APIM security policies can happen in a follow-up change.
+Refresh the contract with:
+
+```powershell
+pwsh ./scripts/Generate-OpenApi.ps1 -Configuration Release
+```
 
 ## Required updates before first deployment
 

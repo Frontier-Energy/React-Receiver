@@ -46,8 +46,14 @@ jobs:
       - name: Restore
         run: dotnet restore React-Receiver.sln
 
+      - name: Restore .NET tools
+        run: dotnet tool restore
+
       - name: Build with warnings as errors
         run: dotnet build React-Receiver.sln --configuration Release --no-restore /p:TreatWarningsAsErrors=true
+
+      - name: Generate OpenAPI contract
+        run: pwsh ./scripts/Generate-OpenApi.ps1 -Configuration Release
 
       - name: Run unit tests
         run: dotnet test React-Receiver.sln --configuration Release --no-build --no-restore /p:TreatWarningsAsErrors=true

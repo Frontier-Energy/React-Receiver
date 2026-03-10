@@ -30,6 +30,21 @@ param apimPublisherEmail string
 ])
 param apimSkuName string = 'Consumption'
 
+@description('Whether APIM should require an Authorization header on inbound requests.')
+param apimRequireAuthorizationHeader bool = true
+
+@description('Maximum number of calls allowed per renewal period by APIM.')
+@minValue(1)
+param apimRateLimitCalls int = 60
+
+@description('Renewal period, in seconds, for the APIM rate limit counter.')
+@minValue(1)
+param apimRateLimitRenewalPeriod int = 60
+
+@description('Maximum inbound request body size allowed through APIM, in bytes.')
+@minValue(1)
+param apimMaxRequestBodyBytes int = 27262976
+
 @description('Container image used for the initial Container App deployment before GitHub Actions rolls out the application image.')
 param bootstrapContainerImage string = 'mcr.microsoft.com/k8se/quickstart:latest'
 
@@ -128,6 +143,37 @@ var storageTableDataContributorRoleDefinitionId = subscriptionResourceId('Micros
 var blobServiceUri = 'https://${storageAccount.name}.blob.${environment().suffixes.storage}'
 var queueServiceUri = 'https://${storageAccount.name}.queue.${environment().suffixes.storage}'
 var tableServiceUri = 'https://${storageAccount.name}.table.${environment().suffixes.storage}'
+var apimOpenApiSpec = loadTextContent('apim/openapi.v1.json')
+var apiManagementPolicy = '''
+<policies>
+  <inbound>
+    <base />
+    ${apimRequireAuthorizationHeader ? '''
+    <choose>
+      <when condition="@(!context.Request.Headers.ContainsKey(&quot;Authorization&quot;) || !context.Request.Headers.GetValueOrDefault(&quot;Authorization&quot;, &quot;&quot;).StartsWith(&quot;Bearer &quot;, StringComparison.OrdinalIgnoreCase))">
+        <return-response>
+          <set-status code="401" reason="Unauthorized" />
+          <set-header name="WWW-Authenticate" exists-action="override">
+            <value>Bearer</value>
+          </set-header>
+        </return-response>
+      </when>
+    </choose>''' : ''}
+    <rate-limit-by-key calls="${apimRateLimitCalls}" renewal-period="${apimRateLimitRenewalPeriod}" counter-key="@(context.Request.Headers.GetValueOrDefault(&quot;Authorization&quot;, context.Request.IpAddress))" />
+    <validate-content max-size="${apimMaxRequestBodyBytes}" size-exceeded-action="prevent" unspecified-content-type-action="ignore" />
+    <set-backend-service base-url="https://${containerApp.properties.configuration.ingress.fqdn}" />
+  </inbound>
+  <backend>
+    <base />
+  </backend>
+  <outbound>
+    <base />
+  </outbound>
+  <on-error>
+    <base />
+  </on-error>
+</policies>
+'''
 
 resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
   name: logAnalyticsWorkspaceName
@@ -456,150 +502,15 @@ resource apiManagementApi 'Microsoft.ApiManagement/service/apis@2022-08-01' = {
   name: 'qcontrol-service'
   parent: apiManagement
   properties: {
-    apiType: 'http'
     displayName: 'QControlService'
+    format: 'openapi+json'
     path: ''
     protocols: [
       'https'
     ]
     serviceUrl: 'https://${containerApp.properties.configuration.ingress.fqdn}'
     subscriptionRequired: false
-  }
-}
-
-resource apiGetAll 'Microsoft.ApiManagement/service/apis/operations@2022-08-01' = {
-  name: 'get-all'
-  parent: apiManagementApi
-  properties: {
-    displayName: 'GET all routes'
-    method: 'GET'
-    urlTemplate: '/{*path}'
-    templateParameters: [
-      {
-        name: 'path'
-        required: false
-        type: 'string'
-      }
-    ]
-  }
-}
-
-resource apiPostAll 'Microsoft.ApiManagement/service/apis/operations@2022-08-01' = {
-  name: 'post-all'
-  parent: apiManagementApi
-  properties: {
-    displayName: 'POST all routes'
-    method: 'POST'
-    urlTemplate: '/{*path}'
-    templateParameters: [
-      {
-        name: 'path'
-        required: false
-        type: 'string'
-      }
-    ]
-  }
-}
-
-resource apiPutAll 'Microsoft.ApiManagement/service/apis/operations@2022-08-01' = {
-  name: 'put-all'
-  parent: apiManagementApi
-  properties: {
-    displayName: 'PUT all routes'
-    method: 'PUT'
-    urlTemplate: '/{*path}'
-    templateParameters: [
-      {
-        name: 'path'
-        required: false
-        type: 'string'
-      }
-    ]
-  }
-}
-
-resource apiPatchAll 'Microsoft.ApiManagement/service/apis/operations@2022-08-01' = {
-  name: 'patch-all'
-  parent: apiManagementApi
-  properties: {
-    displayName: 'PATCH all routes'
-    method: 'PATCH'
-    urlTemplate: '/{*path}'
-    templateParameters: [
-      {
-        name: 'path'
-        required: false
-        type: 'string'
-      }
-    ]
-  }
-}
-
-resource apiDeleteAll 'Microsoft.ApiManagement/service/apis/operations@2022-08-01' = {
-  name: 'delete-all'
-  parent: apiManagementApi
-  properties: {
-    displayName: 'DELETE all routes'
-    method: 'DELETE'
-    urlTemplate: '/{*path}'
-    templateParameters: [
-      {
-        name: 'path'
-        required: false
-        type: 'string'
-      }
-    ]
-  }
-}
-
-resource apiOptionsAll 'Microsoft.ApiManagement/service/apis/operations@2022-08-01' = {
-  name: 'options-all'
-  parent: apiManagementApi
-  properties: {
-    displayName: 'OPTIONS all routes'
-    method: 'OPTIONS'
-    urlTemplate: '/{*path}'
-    templateParameters: [
-      {
-        name: 'path'
-        required: false
-        type: 'string'
-      }
-    ]
-  }
-}
-
-resource apiHeadAll 'Microsoft.ApiManagement/service/apis/operations@2022-08-01' = {
-  name: 'head-all'
-  parent: apiManagementApi
-  properties: {
-    displayName: 'HEAD all routes'
-    method: 'HEAD'
-    urlTemplate: '/{*path}'
-    templateParameters: [
-      {
-        name: 'path'
-        required: false
-        type: 'string'
-      }
-    ]
-  }
-}
-
-resource apiTraceAll 'Microsoft.ApiManagement/service/apis/operations@2022-08-01' = {
-  name: 'trace-all'
-  parent: apiManagementApi
-  properties: {
-    displayName: 'TRACE all routes'
-    method: 'TRACE'
-    urlTemplate: '/{*path}'
-    templateParameters: [
-      {
-        name: 'path'
-        required: false
-        type: 'string'
-      }
-    ]
+    value: apimOpenApiSpec
   }
 }
 
@@ -608,7 +519,7 @@ resource apiPolicy 'Microsoft.ApiManagement/service/apis/policies@2022-08-01' = 
   parent: apiManagementApi
   properties: {
     format: 'rawxml'
-    value: '<policies><inbound><base /></inbound><backend><base /></backend><outbound><base /></outbound><on-error><base /></on-error></policies>'
+    value: apiManagementPolicy
   }
 }
 

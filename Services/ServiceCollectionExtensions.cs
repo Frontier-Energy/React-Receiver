@@ -51,6 +51,16 @@ public static class ServiceCollectionExtensions
         services.AddSwaggerGen(options =>
         {
             options.SwaggerDoc("v1", new() { Title = "React-Receiver API", Version = "v1" });
+            options.CustomOperationIds(apiDescription =>
+            {
+                var controller = apiDescription.ActionDescriptor.RouteValues.TryGetValue("controller", out var controllerName)
+                    ? controllerName
+                    : "Api";
+                var action = apiDescription.ActionDescriptor.RouteValues.TryGetValue("action", out var actionName)
+                    ? actionName
+                    : apiDescription.HttpMethod ?? "Operation";
+                return $"{controller}_{action}";
+            });
         });
         services.AddRequestValidation();
         return services;
