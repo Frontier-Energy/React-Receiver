@@ -21,23 +21,20 @@ It also keeps:
 
 The deployed revision receives:
 
-- image: `react-receiver:<image_tag>`
+- image: `qcontrol-service:<image_tag>`
 - revision suffix: `r<run_number>-<short_sha>`
 - `APP_VERSION=<image_tag>`
 - `GIT_SHA=<full_sha>`
 
-## Required GitHub secrets
+## Required GitHub environment secrets
 
-Set these repository secrets:
+Set these secrets in each GitHub Environment (`dev`, `uat`, `prod`):
 
 - `AZURE_CREDENTIALS`
-- `AZURE_SUBSCRIPTION_ID`
-- `ACR_NAME`
-- `ACR_LOGIN_SERVER`
-- `APPLICATIONINSIGHTS_CONNECTION_STRING`
 
 ## Notes
 
-- `APPLICATIONINSIGHTS_CONNECTION_STRING` is copied into an Azure Container Apps secret named `applicationinsights-connection-string`.
-- The container app references that secret through the environment variable `APPLICATIONINSIGHTS_CONNECTION_STRING`.
+- GitHub Actions uses Azure subscription `b7ae9f0b-20c3-4174-bb60-4ca01a867b8b`, which is committed in the workflow.
+- Azure Container Registry, Storage, Application Insights, Container Apps, and API Management are provisioned by Bicep.
+- The Bicep deployment injects the storage connection string and Application Insights connection string into Container Apps secrets.
 - `APP_VERSION` is used by OpenTelemetry resource configuration so Application Insights can group telemetry by deployed version.

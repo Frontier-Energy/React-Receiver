@@ -6,13 +6,25 @@ on:
   push:
     branches: ["main"]
   workflow_dispatch:
+    inputs:
+      target_environment:
+        description: "Environment to deploy"
+        required: true
+        default: "dev"
+        type: choice
+        options:
+          - dev
+          - uat
+          - prod
+      git_ref:
+        description: "Git ref to deploy"
+        required: false
+        default: "main"
+        type: string
 
 env:
-  ACR_NAME: ${{ secrets.ACR_NAME }}
-  ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
-  IMAGE_NAME: react-receiver
-  CONTAINERAPP_NAME: react-receiver
-  CONTAINERAPP_RESOURCE_GROUP: jmc-sandbox
+  IMAGE_NAME: qcontrol-service
+  AZURE_SUBSCRIPTION_ID: b7ae9f0b-20c3-4174-bb60-4ca01a867b8b
 
 jobs:
   test:
@@ -36,9 +48,35 @@ jobs:
     name: Deploy
     runs-on: ubuntu-latest
     needs: test
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.target_environment || 'dev' }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.git_ref || github.ref }}
+
+      - name: Resolve deployment target
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TARGET_ENV="${{ inputs.target_environment }}"
+          else
+            TARGET_ENV="dev"
+          fi
+
+          case "$TARGET_ENV" in
+            dev|uat|prod) ;;
+            *)
+              echo "Unsupported target environment: $TARGET_ENV" >&2
+              exit 1
+              ;;
+          esac
+
+          RESOURCE_GROUP="rg-qcontrol-service-cus-$TARGET_ENV"
+          PARAM_FILE="infra/environments/$TARGET_ENV.bicepparam"
+
+          echo "TARGET_ENV=$TARGET_ENV" >> "$GITHUB_ENV"
+          echo "RESOURCE_GROUP=$RESOURCE_GROUP" >> "$GITHUB_ENV"
+          echo "PARAM_FILE=$PARAM_FILE" >> "$GITHUB_ENV"
 
       - name: Azure login
         uses: azure/login@v2
@@ -47,18 +85,39 @@ jobs:
           enable-AzPSSession: false
 
       - name: Set subscription
-        run: az account set --subscription "${{ secrets.AZURE_SUBSCRIPTION_ID }}"
+        run: az account set --subscription "$AZURE_SUBSCRIPTION_ID"
 
-      - name: Verify Container App exists
+      - name: Ensure resource group exists
         run: |
-          az containerapp show \
-            --name "$CONTAINERAPP_NAME" \
-            --resource-group "$CONTAINERAPP_RESOURCE_GROUP"
+          az group create \
+            --name "$RESOURCE_GROUP" \
+            --location "centralus"
+
+      - name: Deploy infrastructure
+        run: |
+          az deployment group create \
+            --resource-group "$RESOURCE_GROUP" \
+            --template-file infra/main.bicep \
+            --parameters "$PARAM_FILE" \
+            --query properties.outputs \
+            --output json > deployment-outputs.json
+
+          ACR_NAME="$(jq -r '.containerRegistryName.value' deployment-outputs.json)"
+          ACR_LOGIN_SERVER="$(jq -r '.acrLoginServer.value' deployment-outputs.json)"
+          CONTAINERAPP_NAME="$(jq -r '.containerAppName.value' deployment-outputs.json)"
+          APIM_GATEWAY_URL="$(jq -r '.apiManagementGatewayUrl.value' deployment-outputs.json)"
+          CONTAINERAPP_URL="$(jq -r '.containerAppUrl.value' deployment-outputs.json)"
+
+          echo "ACR_NAME=$ACR_NAME" >> "$GITHUB_ENV"
+          echo "ACR_LOGIN_SERVER=$ACR_LOGIN_SERVER" >> "$GITHUB_ENV"
+          echo "CONTAINERAPP_NAME=$CONTAINERAPP_NAME" >> "$GITHUB_ENV"
+          echo "APIM_GATEWAY_URL=$APIM_GATEWAY_URL" >> "$GITHUB_ENV"
+          echo "CONTAINERAPP_URL=$CONTAINERAPP_URL" >> "$GITHUB_ENV"
 
       - name: Compute image version
         run: |
           SHORT_SHA="${GITHUB_SHA::7}"
-          IMAGE_TAG="main-${{ github.run_number }}-${SHORT_SHA}"
+          IMAGE_TAG="${TARGET_ENV}-${{ github.run_number }}-${SHORT_SHA}"
           REVISION_SUFFIX="r${{ github.run_number }}-${SHORT_SHA}"
 
           echo "IMAGE_TAG=$IMAGE_TAG" >> "$GITHUB_ENV"
@@ -76,21 +135,26 @@ jobs:
           docker push "$ACR_LOGIN_SERVER/$IMAGE_NAME:${{ github.sha }}"
           docker push "$ACR_LOGIN_SERVER/$IMAGE_NAME:latest"
 
-      - name: Store deployment secrets in Container App
-        run: |
-          az containerapp secret set \
-            --name "$CONTAINERAPP_NAME" \
-            --resource-group "$CONTAINERAPP_RESOURCE_GROUP" \
-            --secrets "applicationinsights-connection-string=${{ secrets.APPLICATIONINSIGHTS_CONNECTION_STRING }}"
-
       - name: Deploy versioned image to Container App
         run: |
           az containerapp update \
             --name "$CONTAINERAPP_NAME" \
-            --resource-group "$CONTAINERAPP_RESOURCE_GROUP" \
+            --resource-group "$RESOURCE_GROUP" \
             --image "$ACR_LOGIN_SERVER/$IMAGE_NAME:$IMAGE_TAG" \
             --revision-suffix "$REVISION_SUFFIX" \
             --set-env-vars \
-              "APPLICATIONINSIGHTS_CONNECTION_STRING=secretref:applicationinsights-connection-string" \
               "APP_VERSION=$IMAGE_TAG" \
               "GIT_SHA=${{ github.sha }}"
+
+      - name: Deployment summary
+        run: |
+          {
+            echo "### Deployment"
+            echo ""
+            echo "- Environment: $TARGET_ENV"
+            echo "- Resource group: $RESOURCE_GROUP"
+            echo "- Container App: $CONTAINERAPP_NAME"
+            echo "- Container App URL: $CONTAINERAPP_URL"
+            echo "- APIM Gateway URL: $APIM_GATEWAY_URL"
+            echo "- Image tag: $IMAGE_TAG"
+          } >> "$GITHUB_STEP_SUMMARY"

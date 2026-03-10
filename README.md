@@ -12,6 +12,7 @@ Start with:
 - `Documentation/Onboarding/getting-started.md`
 - `Documentation/Architecture/main.md`
 - `Documentation/Patterns/major-design-patterns.md`
+- `Documentation/Operations/infrastructure.md`
 
 ## Commands
 
