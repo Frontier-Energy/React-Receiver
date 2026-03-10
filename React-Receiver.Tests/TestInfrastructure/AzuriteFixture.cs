@@ -81,6 +81,17 @@ public sealed class AzuriteFixture : IAsyncLifetime
 
     internal AzureInspectionRepository CreateRepository(StorageTestScope scope, InspectionIngestRetryOptions? retryOptions = null)
     {
+        return CreateRepository(
+            scope,
+            new InspectionFileSecurityInspector(new SignatureInspectionFileMalwareScanner()),
+            retryOptions);
+    }
+
+    internal AzureInspectionRepository CreateRepository(
+        StorageTestScope scope,
+        IInspectionFileSecurityInspector fileSecurityInspector,
+        InspectionIngestRetryOptions? retryOptions = null)
+    {
         return new AzureInspectionRepository(
             BlobServiceClient,
             QueueServiceClient,
@@ -90,7 +101,7 @@ public sealed class AzuriteFixture : IAsyncLifetime
             Options.Create(scope.TableOptions),
             Options.Create(retryOptions ?? new InspectionIngestRetryOptions { PoisonThreshold = 3 }),
             StorageObserver,
-            new InspectionFileSecurityInspector(new SignatureInspectionFileMalwareScanner()));
+            fileSecurityInspector);
     }
 
     internal AzureInspectionOutboxStore CreateOutboxStore(StorageTestScope scope)

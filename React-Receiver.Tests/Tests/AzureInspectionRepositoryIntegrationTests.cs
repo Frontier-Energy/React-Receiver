@@ -2,9 +2,9 @@ using System.Text;
 using System.Text.Json;
 using Azure;
 using Azure.Data.Tables;
-using Azure.Storage.Blobs.Models;
 using Microsoft.AspNetCore.Http;
 using React_Receiver.Infrastructure.Inspections;
+using React_Receiver.Mediation.Exceptions;
 using React_Receiver.Models;
 using React_Receiver.Services;
 using React_Receiver.Tests.TestInfrastructure;
@@ -131,6 +131,81 @@ public sealed class AzureInspectionRepositoryIntegrationTests
     }
 
     [Fact]
+    public async Task ProcessPendingAsync_ReachesPoisonThreshold_AndReplayRequiresForce()
+    {
+        await using var scope = await _fixture.CreateScopeAsync();
+        var repository = _fixture.CreateRepository(
+            scope,
+            new InspectionIngestRetryOptions { PoisonThreshold = 2 });
+        var request = CreateRequest("session-poison");
+
+        await repository.PrepareAsync(request, CancellationToken.None);
+        await scope.QuarantineContainer.GetBlobClient($"{request.SessionId}-evidence.txt").DeleteIfExistsAsync();
+
+        var firstAttempt = await repository.ProcessPendingAsync(request.SessionId!, CancellationToken.None);
+        var pendingRetry = await scope.OutboxTable.GetEntityAsync<InspectionIngestOutboxEntity>(
+            InspectionIngestOutboxEntity.PartitionKeyValue,
+            request.SessionId!);
+        pendingRetry.Value.NextAttemptAtUtc = DateTimeOffset.UtcNow.AddSeconds(-1);
+        await scope.OutboxTable.UpdateEntityAsync(
+            pendingRetry.Value,
+            pendingRetry.Value.ETag,
+            TableUpdateMode.Replace);
+        var secondAttempt = await repository.ProcessPendingAsync(request.SessionId!, CancellationToken.None);
+
+        Assert.False(firstAttempt.Processed);
+        Assert.Equal("PendingRetry", firstAttempt.Status);
+        Assert.False(secondAttempt.Processed);
+        Assert.Equal(InspectionIngestStateMachine.PoisonedStatus, secondAttempt.Status);
+        Assert.True(secondAttempt.TerminalFailure);
+        Assert.Equal(2, secondAttempt.RetryCount);
+
+        var blockedReplay = await repository.ReplayOutboxSessionAsync(request.SessionId!, force: false, CancellationToken.None);
+        Assert.False(blockedReplay.Accepted);
+        Assert.Contains("require force", blockedReplay.Message, StringComparison.OrdinalIgnoreCase);
+
+        var forcedReplay = await repository.ReplayOutboxSessionAsync(request.SessionId!, force: true, CancellationToken.None);
+        Assert.True(forcedReplay.Accepted);
+        Assert.NotNull(forcedReplay.Session);
+        Assert.Equal(InspectionIngestStateMachine.ReplayQueuedStatus, forcedReplay.Session!.Status);
+        Assert.False(forcedReplay.Session.TerminalFailure);
+        Assert.False(forcedReplay.Session.Processing);
+        Assert.Null(forcedReplay.Session.LockedUntilUtc);
+        Assert.Null(forcedReplay.Session.PoisonedAtUtc);
+        Assert.NotNull(forcedReplay.Session.NextAttemptAtUtc);
+
+        var persisted = await scope.OutboxTable.GetEntityAsync<InspectionIngestOutboxEntity>(
+            InspectionIngestOutboxEntity.PartitionKeyValue,
+            request.SessionId!);
+        Assert.Equal(InspectionIngestStateMachine.ReplayQueuedStatus, persisted.Value.Status);
+        Assert.False(persisted.Value.TerminalFailure);
+        Assert.False(persisted.Value.Processing);
+        Assert.Null(persisted.Value.LockedUntilUtc);
+        Assert.Null(persisted.Value.PoisonedAtUtc);
+    }
+
+    [Fact]
+    public async Task ReplayOutboxSessionAsync_RejectsActiveLeaseWithoutForce()
+    {
+        await using var scope = await _fixture.CreateScopeAsync();
+        var repository = _fixture.CreateRepository(scope);
+        var request = CreateRequest("session-replay-lease");
+
+        await repository.PrepareAsync(request, CancellationToken.None);
+        var lease = await _fixture.CreateOutboxStore(scope)
+            .TryAcquireLeaseAsync(request.SessionId!, TimeSpan.FromMinutes(2), CancellationToken.None);
+        Assert.NotNull(lease);
+
+        var replay = await repository.ReplayOutboxSessionAsync(request.SessionId!, force: false, CancellationToken.None);
+
+        Assert.False(replay.Accepted);
+        Assert.Contains("currently leased", replay.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.NotNull(replay.Session);
+        Assert.True(replay.Session!.Processing);
+        Assert.NotNull(replay.Session.LockedUntilUtc);
+    }
+
+    [Fact]
     public async Task TryAcquireLeaseAsync_OnlyOneConcurrentAttemptSucceeds()
     {
         await using var scope = await _fixture.CreateScopeAsync();
@@ -156,6 +231,115 @@ public sealed class AzureInspectionRepositoryIntegrationTests
         Assert.Equal("Processing", persisted.Value.Status);
     }
 
+    [Fact]
+    public async Task GetAsync_AfterCompletion_ReturnsPayloadAndPromotedFileMetadata()
+    {
+        await using var scope = await _fixture.CreateScopeAsync();
+        var repository = _fixture.CreateRepository(scope);
+        var request = CreateRequest("session-get");
+
+        await repository.PrepareAsync(request, CancellationToken.None);
+        await repository.ProcessPendingAsync(request.SessionId!, CancellationToken.None);
+
+        var inspection = await repository.GetAsync(request.SessionId!, CancellationToken.None);
+
+        Assert.NotNull(inspection);
+        Assert.Equal(request.SessionId, inspection!.SessionId);
+        Assert.Equal(request.UserId, inspection.UserId);
+        Assert.Equal(request.Name, inspection.Name);
+        Assert.Equal("B1", inspection.QueryParams["floor"]);
+        var file = Assert.Single(inspection.Files);
+        Assert.Equal("evidence.txt", file.FileName);
+        Assert.Equal("text/plain", file.FileType);
+    }
+
+    [Fact]
+    public async Task GetFileAsync_AfterCompletion_ReturnsPromotedBlobStream()
+    {
+        await using var scope = await _fixture.CreateScopeAsync();
+        var repository = _fixture.CreateRepository(scope);
+        var request = CreateRequest("session-file");
+
+        await repository.PrepareAsync(request, CancellationToken.None);
+        await repository.ProcessPendingAsync(request.SessionId!, CancellationToken.None);
+
+        var file = await repository.GetFileAsync(request.SessionId!, "evidence.txt", CancellationToken.None);
+
+        Assert.NotNull(file);
+        Assert.Equal("evidence.txt", file!.FileName);
+        Assert.Equal("text/plain", file.ContentType);
+        using var reader = new StreamReader(file.Content, leaveOpen: false);
+        var content = await reader.ReadToEndAsync();
+        Assert.Equal($"inspection payload for {request.SessionId}", content);
+    }
+
+    [Fact]
+    public async Task PrepareAsync_WhenFileIsRejectedBySecurityInspection_MarksRejected_AndLeavesQuarantineBlob()
+    {
+        await using var scope = await _fixture.CreateScopeAsync();
+        var repository = _fixture.CreateRepository(scope);
+        var request = new ReceiveInspectionRequest(
+            "session-rejected",
+            "user-123",
+            "Boiler room",
+            new Dictionary<string, string> { ["floor"] = "B1" },
+            [CreateTextFile(
+                "evidence.txt",
+                "X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*")]);
+
+        var exception = await Assert.ThrowsAsync<InspectionFileSecurityException>(
+            () => repository.PrepareAsync(request, CancellationToken.None));
+
+        Assert.Contains("malware scanning", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.False((await scope.PayloadContainer.GetBlobClient($"{request.SessionId}.json").ExistsAsync()).Value);
+        Assert.True((await scope.QuarantineContainer.GetBlobClient($"{request.SessionId}-evidence.txt").ExistsAsync()).Value);
+        Assert.False((await scope.FilesContainer.GetBlobClient($"{request.SessionId}-evidence.txt").ExistsAsync()).Value);
+
+        var outbox = await scope.OutboxTable.GetEntityAsync<InspectionIngestOutboxEntity>(
+            InspectionIngestOutboxEntity.PartitionKeyValue,
+            request.SessionId!);
+        Assert.Equal(InspectionIngestStateMachine.RejectedStatus, outbox.Value.Status);
+        Assert.True(outbox.Value.TerminalFailure);
+        Assert.False(outbox.Value.Completed);
+        Assert.False(outbox.Value.Processing);
+    }
+
+    [Fact]
+    public async Task PrepareAsync_WhenGenericFailureOccursDuringStaging_CompensatesPayloadAndQuarantineArtifacts()
+    {
+        await using var scope = await _fixture.CreateScopeAsync();
+        var repository = _fixture.CreateRepository(
+            scope,
+            new SelectiveThrowingInspector("second.txt"));
+        var request = new ReceiveInspectionRequest(
+            "session-compensated",
+            "user-123",
+            "Boiler room",
+            new Dictionary<string, string> { ["floor"] = "B1" },
+            [
+                CreateTextFile("first.txt", "first file"),
+                CreateTextFile("second.txt", "second file")
+            ]);
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => repository.PrepareAsync(request, CancellationToken.None));
+
+        Assert.Equal("simulated inspection failure", exception.Message);
+        Assert.False((await scope.PayloadContainer.GetBlobClient($"{request.SessionId}.json").ExistsAsync()).Value);
+        Assert.False((await scope.QuarantineContainer.GetBlobClient($"{request.SessionId}-first.txt").ExistsAsync()).Value);
+        Assert.False((await scope.QuarantineContainer.GetBlobClient($"{request.SessionId}-second.txt").ExistsAsync()).Value);
+        Assert.False((await scope.FilesContainer.GetBlobClient($"{request.SessionId}-first.txt").ExistsAsync()).Value);
+
+        var outbox = await scope.OutboxTable.GetEntityAsync<InspectionIngestOutboxEntity>(
+            InspectionIngestOutboxEntity.PartitionKeyValue,
+            request.SessionId!);
+        Assert.Equal(InspectionIngestStateMachine.CompensatedStatus, outbox.Value.Status);
+        Assert.True(outbox.Value.TerminalFailure);
+        Assert.False(outbox.Value.PayloadStaged);
+        Assert.False(outbox.Value.FilesStaged);
+        Assert.False(outbox.Value.Completed);
+    }
+
     private static ReceiveInspectionRequest CreateRequest(string sessionId)
     {
         return new ReceiveInspectionRequest(
@@ -175,5 +359,26 @@ public sealed class AzureInspectionRepositoryIntegrationTests
             Headers = new HeaderDictionary(),
             ContentType = "text/plain"
         };
+    }
+
+    private sealed class SelectiveThrowingInspector : IInspectionFileSecurityInspector
+    {
+        private readonly string _throwOnFileName;
+        private readonly InspectionFileSecurityInspector _inner = new(new SignatureInspectionFileMalwareScanner());
+
+        public SelectiveThrowingInspector(string throwOnFileName)
+        {
+            _throwOnFileName = throwOnFileName;
+        }
+
+        public Task<InspectionFileInspectionResult> InspectAsync(IFormFile file, CancellationToken cancellationToken)
+        {
+            if (string.Equals(file.FileName, _throwOnFileName, StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException("simulated inspection failure");
+            }
+
+            return _inner.InspectAsync(file, cancellationToken);
+        }
     }
 }
