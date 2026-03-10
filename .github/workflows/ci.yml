@@ -151,11 +151,15 @@ jobs:
             --name "$CONTAINERAPP_NAME" \
             --resource-group "$RESOURCE_GROUP" \
             --image "$ACR_LOGIN_SERVER/$IMAGE_NAME:$IMAGE_TAG" \
-            --target-port "$APPLICATION_CONTAINER_PORT" \
             --revision-suffix "$REVISION_SUFFIX" \
             --set-env-vars \
               "APP_VERSION=$IMAGE_TAG" \
               "GIT_SHA=${{ github.sha }}"
+
+          az containerapp ingress update \
+            --name "$CONTAINERAPP_NAME" \
+            --resource-group "$RESOURCE_GROUP" \
+            --target-port "$APPLICATION_CONTAINER_PORT"
 
       - name: Deployment summary
         run: |
