@@ -308,6 +308,10 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
           name: normalizedAppName
           image: bootstrapContainerImage
           env: [
+            if (environmentName == 'dev') {
+              name: 'ASPNETCORE_ENVIRONMENT'
+              value: 'Development'
+            }
             {
               name: 'APPLICATIONINSIGHTS_CONNECTION_STRING'
               secretRef: 'applicationinsights-connection-string'

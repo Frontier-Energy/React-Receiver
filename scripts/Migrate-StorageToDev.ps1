@@ -57,7 +57,7 @@ function Invoke-AzCli {
         [string[]]$Arguments
     )
 
-    $output = & az @Arguments 2>&1
+    $output = & az @Arguments --only-show-errors 2>&1
     if ($LASTEXITCODE -ne 0) {
         throw "Azure CLI command failed: az $($Arguments -join ' ')`n$output"
     }
