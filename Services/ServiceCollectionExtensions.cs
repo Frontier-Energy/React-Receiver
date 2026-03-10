@@ -89,6 +89,13 @@ public static class ServiceCollectionExtensions
 
     public static IServiceCollection AddStorageServices(this IServiceCollection services, IConfiguration configuration)
     {
+        var storageInfrastructureOptions = configuration
+            .GetSection("StorageInfrastructure")
+            .Get<StorageInfrastructureOptions>();
+        var dependencyHealthCheckTags = storageInfrastructureOptions?.ValidateDependenciesOnStartup == false
+            ? ["ready"]
+            : new[] { "startup", "ready" };
+
         services
             .AddOptions<BlobStorageOptions>()
             .Bind(configuration.GetSection("BlobStorage"))
@@ -134,13 +141,13 @@ public static class ServiceCollectionExtensions
                 tags: ["startup", "ready"])
             .AddCheck<BlobStorageHealthCheck>(
                 "blob-storage",
-                tags: ["startup", "ready"])
+                tags: dependencyHealthCheckTags)
             .AddCheck<QueueStorageHealthCheck>(
                 "queue-storage",
-                tags: ["startup", "ready"])
+                tags: dependencyHealthCheckTags)
             .AddCheck<TableStorageHealthCheck>(
                 "table-storage",
-                tags: ["startup", "ready"]);
+                tags: dependencyHealthCheckTags);
 
         services.AddSingleton<IBootstrapDataProvider, FileBootstrapDataProvider>();
         services.AddSingleton<IAuditEventLogger, AuditEventLogger>();

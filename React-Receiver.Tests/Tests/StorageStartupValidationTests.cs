@@ -183,24 +183,26 @@ public sealed class StorageStartupValidationTests
     }
 
     [Fact]
-    public void DevelopmentSettings_CanOptIntoStorageInfrastructureProvisioning()
+    public void DevelopmentSettings_DefaultToManualStorageProvisioning()
     {
         var repositoryRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
         var source = File.ReadAllText(Path.Combine(repositoryRoot, "appsettings.Development.json"));
 
         Assert.Contains("\"StorageInfrastructure\"", source, StringComparison.Ordinal);
-        Assert.Contains("\"EnableOnStartup\": true", source, StringComparison.Ordinal);
+        Assert.Contains("\"EnableOnStartup\": false", source, StringComparison.Ordinal);
+        Assert.Contains("\"ValidateDependenciesOnStartup\": false", source, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void ServiceCollectionExtensions_RegistersQueueStorageHealthCheck_ForStartupAndReadiness()
+    public void ServiceCollectionExtensions_CanRestrictQueueStorageHealthCheck_ToReadiness()
     {
         var repositoryRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
         var source = File.ReadAllText(Path.Combine(repositoryRoot, "Services/ServiceCollectionExtensions.cs"));
 
         Assert.Contains("AddCheck<QueueStorageHealthCheck>(", source, StringComparison.Ordinal);
         Assert.Contains("\"queue-storage\"", source, StringComparison.Ordinal);
-        Assert.Contains("tags: [\"startup\", \"ready\"]", source, StringComparison.Ordinal);
+        Assert.Contains("ValidateDependenciesOnStartup == false", source, StringComparison.Ordinal);
+        Assert.Contains("tags: dependencyHealthCheckTags", source, StringComparison.Ordinal);
     }
 
     [Fact]
