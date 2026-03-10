@@ -42,7 +42,7 @@ public sealed class InspectionIngestOutboxAdminControllerTests
             return Task.FromResult<object?>(null);
         });
 
-        var result = await controller.GetSession(new GetInspectionIngestOutboxSessionRequest { SessionId = "missing" });
+        var result = await controller.GetSession("missing");
 
         Assert.IsType<NotFoundResult>(result.Result);
     }
@@ -80,7 +80,7 @@ public sealed class InspectionIngestOutboxAdminControllerTests
         });
 
         var result = await controller.ReplaySession(
-            new GetInspectionIngestOutboxSessionRequest { SessionId = "session-1" },
+            "session-1",
             new ReplayInspectionIngestOutboxRequest { Force = true });
 
         Assert.IsType<ConflictObjectResult>(result.Result);
