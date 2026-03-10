@@ -17,6 +17,7 @@ The application binds these sections:
 - `QueueStorage`
 - `TableStorage`
 - `BootstrapData`
+- `StorageInfrastructure`
 
 ## BlobStorage
 
@@ -83,6 +84,17 @@ Behavior:
 - when `SeedOnStartup` is `true`, startup imports form schemas, translations, and tenant config through their application services
 - `OverwriteExisting` controls whether import replaces existing data
 
+## StorageInfrastructure
+
+Configured fields:
+
+- `EnableOnStartup`
+
+Behavior:
+
+- when `EnableOnStartup` is `true`, startup provisions required blob containers, queue, and tables
+- default should remain `false` outside development environments so infrastructure is created by IaC, for example Bicep, rather than by the application during boot
+
 ## Startup Validation
 
 Storage-related configuration is validated in two places:
@@ -107,6 +119,7 @@ BlobStorage__ContainerName
 QueueStorage__QueueName
 TableStorage__InspectionIngestOutboxTableName
 BootstrapData__SeedOnStartup
+StorageInfrastructure__EnableOnStartup
 ```
 
 ## Operational Recommendations

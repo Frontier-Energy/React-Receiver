@@ -6,6 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>React_Receiver</RootNamespace>
     <DefaultItemExcludes>$(DefaultItemExcludes);bin\**;obj\**;bin_verify\**;obj_verify\**;React-Receiver.Tests\**</DefaultItemExcludes>
+    <NuGetAudit>false</NuGetAudit>
   </PropertyGroup>
 
   <ItemGroup>

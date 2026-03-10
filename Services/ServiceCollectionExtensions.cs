@@ -15,6 +15,23 @@ namespace React_Receiver.Services;
 
 public static class ServiceCollectionExtensions
 {
+    internal static string? ResolveAzureMonitorConnectionString(IConfiguration configuration)
+    {
+        var configuredValue = configuration["AzureMonitor:ConnectionString"];
+        if (!string.IsNullOrWhiteSpace(configuredValue))
+        {
+            return NormalizeAzureMonitorConnectionString(configuredValue);
+        }
+
+        var environmentValue = configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"];
+        if (!string.IsNullOrWhiteSpace(environmentValue))
+        {
+            return NormalizeAzureMonitorConnectionString(environmentValue);
+        }
+
+        return null;
+    }
+
     public static IServiceCollection AddApiServices(this IServiceCollection services)
     {
         services.AddScoped<RequestValidationFilter>();
@@ -44,16 +61,20 @@ public static class ServiceCollectionExtensions
             options.RecordException = true;
             options.Filter = httpContext => RequestTelemetryFilter.ShouldCollect(httpContext.Request.Path);
         });
-        services.AddOpenTelemetry()
+        var openTelemetryBuilder = services.AddOpenTelemetry()
             .ConfigureResource(resource => resource.AddService(
                 serviceName: "react-receiver",
-                serviceVersion: ResolveServiceVersion(configuration)))
-            .UseAzureMonitor(options =>
+                serviceVersion: ResolveServiceVersion(configuration)));
+        var azureMonitorConnectionString = ResolveAzureMonitorConnectionString(configuration);
+
+        if (azureMonitorConnectionString is not null)
+        {
+            openTelemetryBuilder.UseAzureMonitor(options =>
             {
-                options.ConnectionString =
-                    configuration["AzureMonitor:ConnectionString"] ??
-                    configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"];
+                options.ConnectionString = azureMonitorConnectionString;
             });
+        }
+
         services.ConfigureOpenTelemetryMeterProvider((_, metrics) =>
         {
             metrics.AddMeter(ReceiverTelemetry.MeterName);
@@ -83,6 +104,9 @@ public static class ServiceCollectionExtensions
         services
             .AddOptions<BootstrapDataOptions>()
             .Bind(configuration.GetSection("BootstrapData"));
+        services
+            .AddOptions<StorageInfrastructureOptions>()
+            .Bind(configuration.GetSection("StorageInfrastructure"));
 
         services.AddSingleton<Microsoft.Extensions.Options.IValidateOptions<BlobStorageOptions>, BlobStorageOptionsValidator>();
         services.AddSingleton<Microsoft.Extensions.Options.IValidateOptions<QueueStorageOptions>, QueueStorageOptionsValidator>();
@@ -137,7 +161,7 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
-    public static IServiceCollection AddHostedServices(this IServiceCollection services)
+    public static IServiceCollection AddHostedServices(this IServiceCollection services, IConfiguration configuration)
     {
         services
             .AddOptions<InspectionIngestRetryOptions>()
@@ -159,7 +183,16 @@ public static class ServiceCollectionExtensions
                     options.MaxConcurrentSessions = 8;
                 }
             });
-        services.AddHostedService<StorageInfrastructureHostedService>();
+
+        var storageInfrastructureOptions = configuration
+            .GetSection("StorageInfrastructure")
+            .Get<StorageInfrastructureOptions>();
+
+        if (storageInfrastructureOptions?.EnableOnStartup == true)
+        {
+            services.AddHostedService<StorageInfrastructureHostedService>();
+        }
+
         services.AddHostedService<StartupHealthCheckHostedService>();
         services.AddHostedService<BootstrapDataHostedService>();
         services.AddHostedService<InspectionIngestRetryHostedService>();
@@ -172,5 +205,16 @@ public static class ServiceCollectionExtensions
             configuration["OTEL_SERVICE_VERSION"] ??
             typeof(Program).Assembly.GetName().Version?.ToString() ??
             "unknown";
+    }
+
+    private static string? NormalizeAzureMonitorConnectionString(string connectionString)
+    {
+        var normalized = connectionString.Trim();
+        if (normalized.Length == 0 || normalized.StartsWith(';'))
+        {
+            return null;
+        }
+
+        return normalized;
     }
 }

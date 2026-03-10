@@ -24,7 +24,7 @@ builder.Services
     .AddTranslationFeature()
     .AddTenantConfigFeature()
     .AddMediatorServices()
-    .AddHostedServices();
+    .AddHostedServices(builder.Configuration);
 
 var app = builder.Build();
 

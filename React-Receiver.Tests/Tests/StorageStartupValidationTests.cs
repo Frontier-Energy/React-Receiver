@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using React_Receiver.Services;
@@ -161,12 +162,34 @@ public sealed class StorageStartupValidationTests
         var repositoryRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
         var source = File.ReadAllText(Path.Combine(repositoryRoot, "Services/ServiceCollectionExtensions.cs"));
 
+        var conditionalIndex = source.IndexOf("EnableOnStartup == true", StringComparison.Ordinal);
         var storageIndex = source.IndexOf("AddHostedService<StorageInfrastructureHostedService>()", StringComparison.Ordinal);
         var startupIndex = source.IndexOf("AddHostedService<StartupHealthCheckHostedService>()", StringComparison.Ordinal);
 
+        Assert.True(conditionalIndex >= 0, "Storage infrastructure hosted service should be gated by configuration.");
         Assert.True(storageIndex >= 0, "Storage infrastructure hosted service registration was not found.");
         Assert.True(startupIndex >= 0, "Startup health check hosted service registration was not found.");
         Assert.True(storageIndex < startupIndex, "Storage infrastructure must start before startup health checks.");
+    }
+
+    [Fact]
+    public void AppSettings_DefaultsStorageInfrastructureProvisioning_ToDisabled()
+    {
+        var repositoryRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
+        var source = File.ReadAllText(Path.Combine(repositoryRoot, "appsettings.json"));
+
+        Assert.Contains("\"StorageInfrastructure\"", source, StringComparison.Ordinal);
+        Assert.Contains("\"EnableOnStartup\": false", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void DevelopmentSettings_CanOptIntoStorageInfrastructureProvisioning()
+    {
+        var repositoryRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
+        var source = File.ReadAllText(Path.Combine(repositoryRoot, "appsettings.Development.json"));
+
+        Assert.Contains("\"StorageInfrastructure\"", source, StringComparison.Ordinal);
+        Assert.Contains("\"EnableOnStartup\": true", source, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -178,6 +201,40 @@ public sealed class StorageStartupValidationTests
         Assert.Contains("AddCheck<QueueStorageHealthCheck>(", source, StringComparison.Ordinal);
         Assert.Contains("\"queue-storage\"", source, StringComparison.Ordinal);
         Assert.Contains("tags: [\"startup\", \"ready\"]", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ResolveAzureMonitorConnectionString_PrefersFirstNonWhitespaceValue()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["AzureMonitor:ConnectionString"] = "  ",
+                ["APPLICATIONINSIGHTS_CONNECTION_STRING"] = "InstrumentationKey=test-key"
+            })
+            .Build();
+
+        var connectionString = ServiceCollectionExtensions.ResolveAzureMonitorConnectionString(configuration);
+
+        Assert.Equal("InstrumentationKey=test-key", connectionString);
+    }
+
+    [Theory]
+    [InlineData(" ;InstrumentationKey=test-key")]
+    [InlineData(";")]
+    [InlineData("   ")]
+    public void ResolveAzureMonitorConnectionString_IgnoresMalformedOrEmptyValues(string configuredValue)
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["AzureMonitor:ConnectionString"] = configuredValue
+            })
+            .Build();
+
+        var connectionString = ServiceCollectionExtensions.ResolveAzureMonitorConnectionString(configuration);
+
+        Assert.Null(connectionString);
     }
 
     private sealed class StubHealthCheckService : HealthCheckService
