@@ -58,6 +58,12 @@ Use this process when changing `infra/main.bicep` or any environment parameter f
 
 The repository is pinned to Azure subscription `b7ae9f0b-20c3-4174-bb60-4ca01a867b8b`.
 
+Single-command local entrypoint:
+
+```powershell
+.\infra\Deploy-Infrastructure.ps1 -EnvironmentName dev
+```
+
 ### Prerequisites
 
 - Azure CLI installed
@@ -136,4 +142,6 @@ az acr list --resource-group $resourceGroup -o table
 
 ### 8. Complete the app rollout
 
-The Bicep deployment creates the infrastructure and a bootstrap Container App definition. To test the real application, push a container image through the GitHub Actions deploy workflow or manually update the Container App image after provisioning.
+The Bicep deployment creates the infrastructure and a bootstrap Container App definition. The bootstrap revision uses its own image port so ARM can finish provisioning cleanly before the real application image exists.
+
+To test the real application, push a container image through the GitHub Actions deploy workflow or manually update the Container App image after provisioning. For system-assigned identity pulls from ACR, configure registry access after the Container App exists, then update the image. When updating manually, also set the ingress target port back to `8080` for the ASP.NET app.

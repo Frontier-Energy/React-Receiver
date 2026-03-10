@@ -105,12 +105,14 @@ jobs:
           ACR_NAME="$(jq -r '.containerRegistryName.value' deployment-outputs.json)"
           ACR_LOGIN_SERVER="$(jq -r '.acrLoginServer.value' deployment-outputs.json)"
           CONTAINERAPP_NAME="$(jq -r '.containerAppName.value' deployment-outputs.json)"
+          APPLICATION_CONTAINER_PORT="$(jq -r '.applicationContainerPort.value' deployment-outputs.json)"
           APIM_GATEWAY_URL="$(jq -r '.apiManagementGatewayUrl.value' deployment-outputs.json)"
           CONTAINERAPP_URL="$(jq -r '.containerAppUrl.value' deployment-outputs.json)"
 
           echo "ACR_NAME=$ACR_NAME" >> "$GITHUB_ENV"
           echo "ACR_LOGIN_SERVER=$ACR_LOGIN_SERVER" >> "$GITHUB_ENV"
           echo "CONTAINERAPP_NAME=$CONTAINERAPP_NAME" >> "$GITHUB_ENV"
+          echo "APPLICATION_CONTAINER_PORT=$APPLICATION_CONTAINER_PORT" >> "$GITHUB_ENV"
           echo "APIM_GATEWAY_URL=$APIM_GATEWAY_URL" >> "$GITHUB_ENV"
           echo "CONTAINERAPP_URL=$CONTAINERAPP_URL" >> "$GITHUB_ENV"
 
@@ -135,12 +137,21 @@ jobs:
           docker push "$ACR_LOGIN_SERVER/$IMAGE_NAME:${{ github.sha }}"
           docker push "$ACR_LOGIN_SERVER/$IMAGE_NAME:latest"
 
+      - name: Configure Container App registry access
+        run: |
+          az containerapp registry set \
+            --name "$CONTAINERAPP_NAME" \
+            --resource-group "$RESOURCE_GROUP" \
+            --server "$ACR_LOGIN_SERVER" \
+            --identity system
+
       - name: Deploy versioned image to Container App
         run: |
           az containerapp update \
             --name "$CONTAINERAPP_NAME" \
             --resource-group "$RESOURCE_GROUP" \
             --image "$ACR_LOGIN_SERVER/$IMAGE_NAME:$IMAGE_TAG" \
+            --target-port "$APPLICATION_CONTAINER_PORT" \
             --revision-suffix "$REVISION_SUFFIX" \
             --set-env-vars \
               "APP_VERSION=$IMAGE_TAG" \

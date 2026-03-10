@@ -33,6 +33,9 @@ param apimSkuName string = 'Consumption'
 @description('Container image used for the initial Container App deployment before GitHub Actions rolls out the application image.')
 param bootstrapContainerImage string = 'mcr.microsoft.com/k8se/quickstart:latest'
 
+@description('Container port exposed by the bootstrap container image.')
+param bootstrapContainerPort int = 80
+
 @description('Container port exposed by the application.')
 param containerPort int = 8080
 
@@ -280,7 +283,7 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
       ingress: {
         allowInsecure: false
         external: true
-        targetPort: containerPort
+        targetPort: bootstrapContainerPort
         traffic: [
           {
             latestRevision: true
@@ -288,12 +291,6 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
           }
         ]
       }
-      registries: [
-        {
-          server: containerRegistry.properties.loginServer
-          identity: 'system'
-        }
-      ]
       secrets: [
         {
           name: 'storage-connection-string'
@@ -583,6 +580,7 @@ output containerRegistryName string = containerRegistry.name
 output acrLoginServer string = containerRegistry.properties.loginServer
 output containerAppName string = containerApp.name
 output containerAppUrl string = 'https://${containerApp.properties.configuration.ingress.fqdn}'
+output applicationContainerPort int = containerPort
 output apiManagementName string = apiManagement.name
 output apiManagementGatewayUrl string = apiManagement.properties.gatewayUrl
 output applicationInsightsName string = applicationInsights.name

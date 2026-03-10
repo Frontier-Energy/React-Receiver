@@ -43,6 +43,8 @@ Bicep resolves and injects these values into the Container App as secrets:
 - storage account connection string
 - Application Insights connection string
 
+The initial Container App revision is created from a bootstrap image so the infrastructure deployment can complete before the application image is pushed. That bootstrap revision can use a different ingress port than the ASP.NET application. For system-assigned identity pulls from ACR, registry access is configured after the Container App exists, and then the GitHub Actions rollout step switches the Container App ingress target port back to `8080` when it deploys the real image.
+
 The application reads them through environment variables such as:
 
 - `BlobStorage__ConnectionString`
