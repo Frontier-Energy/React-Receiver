@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using Azure;
 using Azure.Data.Tables;
 using Azure.Storage.Blobs;
@@ -21,8 +22,10 @@ public sealed class AzuriteCollectionDefinition : ICollectionFixture<AzuriteFixt
 public sealed class AzuriteFixture : IAsyncLifetime
 {
     private const string DevelopmentStorageConnectionString = "UseDevelopmentStorage=true";
+    private const string AzuriteExecutablePathEnvironmentVariable = "AZURITE_EXECUTABLE_PATH";
     private readonly string _repositoryRoot;
     private readonly string _azuriteExecutablePath;
+    private readonly string? _azuriteArgumentsPrefix;
     private readonly string _dataDirectory;
     private Process? _azuriteProcess;
     private bool _ownsAzuriteProcess;
@@ -30,7 +33,7 @@ public sealed class AzuriteFixture : IAsyncLifetime
     public AzuriteFixture()
     {
         _repositoryRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
-        _azuriteExecutablePath = Path.Combine(_repositoryRoot, "node_modules", ".bin", "azurite.cmd");
+        (_azuriteExecutablePath, _azuriteArgumentsPrefix) = ResolveAzuriteCommand(_repositoryRoot);
         _dataDirectory = Path.Combine(Path.GetTempPath(), "react-receiver-azurite", Guid.NewGuid().ToString("N"));
         BlobServiceClient = new BlobServiceClient(DevelopmentStorageConnectionString);
         QueueServiceClient = new QueueServiceClient(DevelopmentStorageConnectionString);
@@ -128,7 +131,7 @@ public sealed class AzuriteFixture : IAsyncLifetime
 
     private void StartAzuriteProcess()
     {
-        if (!File.Exists(_azuriteExecutablePath))
+        if (!CanStartExecutable(_azuriteExecutablePath))
         {
             throw new InvalidOperationException($"Azurite executable was not found at '{_azuriteExecutablePath}'.");
         }
@@ -137,11 +140,19 @@ public sealed class AzuriteFixture : IAsyncLifetime
         _azuriteProcess = Process.Start(new ProcessStartInfo
         {
             FileName = _azuriteExecutablePath,
-            Arguments = $"--silent --location \"{_dataDirectory}\"",
+            Arguments = BuildAzuriteArguments(_dataDirectory),
             WorkingDirectory = _repositoryRoot,
             UseShellExecute = false,
             CreateNoWindow = true
         }) ?? throw new InvalidOperationException("Failed to start Azurite.");
+    }
+
+    private string BuildAzuriteArguments(string dataDirectory)
+    {
+        var azuriteArguments = $"--silent --location \"{dataDirectory}\"";
+        return string.IsNullOrWhiteSpace(_azuriteArgumentsPrefix)
+            ? azuriteArguments
+            : $"{_azuriteArgumentsPrefix} {azuriteArguments}";
     }
 
     private async Task WaitForAzuriteAsync()
@@ -182,6 +193,48 @@ public sealed class AzuriteFixture : IAsyncLifetime
     internal static string CreateQueueName(string prefix)
     {
         return $"{prefix}-{Guid.NewGuid():N}"[..Math.Min(prefix.Length + 33, 63)];
+    }
+
+    private static (string ExecutablePath, string? ArgumentsPrefix) ResolveAzuriteCommand(string repositoryRoot)
+    {
+        var configuredPath = Environment.GetEnvironmentVariable(AzuriteExecutablePathEnvironmentVariable);
+        if (!string.IsNullOrWhiteSpace(configuredPath))
+        {
+            var fullPath = Path.GetFullPath(configuredPath, repositoryRoot);
+            return (fullPath, null);
+        }
+
+        var npmBinDirectory = Path.Combine(repositoryRoot, "node_modules", ".bin");
+        var platformShim = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+            ? Path.Combine(npmBinDirectory, "azurite.cmd")
+            : Path.Combine(npmBinDirectory, "azurite");
+
+        if (File.Exists(platformShim))
+        {
+            return (platformShim, null);
+        }
+
+        var fallbackShim = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+            ? Path.Combine(npmBinDirectory, "azurite")
+            : Path.Combine(npmBinDirectory, "azurite.cmd");
+
+        if (File.Exists(fallbackShim))
+        {
+            return (fallbackShim, null);
+        }
+
+        var packageEntryPoint = Path.Combine(repositoryRoot, "node_modules", "azurite", "dist", "src", "azurite.js");
+        if (File.Exists(packageEntryPoint))
+        {
+            return ("node", $"\"{packageEntryPoint}\"");
+        }
+
+        return (platformShim, null);
+    }
+
+    private static bool CanStartExecutable(string executablePath)
+    {
+        return !Path.IsPathRooted(executablePath) || File.Exists(executablePath);
     }
 }
 
