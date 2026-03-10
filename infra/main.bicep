@@ -107,6 +107,14 @@ var applicationInsightsName = 'appi-${appName}-${resourceSuffix}'
 var apiManagementName = toLower('apim-${compactServiceToken}-${locationToken}-${environmentName}-${take(suffix, 6)}')
 var containerRegistryName = toLower('acr${compactServiceToken}${locationToken}${environmentName}${take(suffix, 6)}')
 var storageAccountName = toLower('st${compactServiceToken}${locationToken}${environmentName}${take(suffix, 6)}')
+var aspNetCoreEnvironmentVariables = environmentName == 'dev'
+  ? [
+      {
+        name: 'ASPNETCORE_ENVIRONMENT'
+        value: 'Development'
+      }
+    ]
+  : []
 var tags = {
   application: appName
   environment: environmentName
@@ -307,11 +315,7 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
         {
           name: normalizedAppName
           image: bootstrapContainerImage
-          env: [
-            if (environmentName == 'dev') {
-              name: 'ASPNETCORE_ENVIRONMENT'
-              value: 'Development'
-            }
+          env: concat(aspNetCoreEnvironmentVariables, [
             {
               name: 'APPLICATIONINSIGHTS_CONNECTION_STRING'
               secretRef: 'applicationinsights-connection-string'
@@ -376,7 +380,7 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
               name: 'BootstrapData__OverwriteExisting'
               value: string(overwriteExistingBootstrapData)
             }
-          ]
+          ])
           resources: {
             cpu: json(containerCpu)
             memory: containerMemory
