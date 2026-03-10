@@ -157,52 +157,45 @@ public sealed class StorageStartupValidationTests
     }
 
     [Fact]
-    public void Program_RegistersStorageInfrastructureHostedService_BeforeStartupHealthChecks()
+    public void Program_DoesNotRegisterStorageInfrastructureHostedService()
     {
         var repositoryRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
         var source = File.ReadAllText(Path.Combine(repositoryRoot, "Services/ServiceCollectionExtensions.cs"));
 
-        var conditionalIndex = source.IndexOf("EnableOnStartup == true", StringComparison.Ordinal);
-        var storageIndex = source.IndexOf("AddHostedService<StorageInfrastructureHostedService>()", StringComparison.Ordinal);
-        var startupIndex = source.IndexOf("AddHostedService<StartupHealthCheckHostedService>()", StringComparison.Ordinal);
-
-        Assert.True(conditionalIndex >= 0, "Storage infrastructure hosted service should be gated by configuration.");
-        Assert.True(storageIndex >= 0, "Storage infrastructure hosted service registration was not found.");
-        Assert.True(startupIndex >= 0, "Startup health check hosted service registration was not found.");
-        Assert.True(storageIndex < startupIndex, "Storage infrastructure must start before startup health checks.");
+        Assert.DoesNotContain("StorageInfrastructureHostedService", source, StringComparison.Ordinal);
+        Assert.Contains("AddHostedService<StartupHealthCheckHostedService>()", source, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void AppSettings_DefaultsStorageInfrastructureProvisioning_ToDisabled()
+    public void AppSettings_DoNotExposeStorageInfrastructureProvisioningSettings()
     {
         var repositoryRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
         var source = File.ReadAllText(Path.Combine(repositoryRoot, "appsettings.json"));
 
-        Assert.Contains("\"StorageInfrastructure\"", source, StringComparison.Ordinal);
-        Assert.Contains("\"EnableOnStartup\": false", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"StorageInfrastructure\"", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"EnableOnStartup\"", source, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void DevelopmentSettings_DefaultToManualStorageProvisioning()
+    public void DevelopmentSettings_DoNotExposeStorageInfrastructureProvisioningSettings()
     {
         var repositoryRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
         var source = File.ReadAllText(Path.Combine(repositoryRoot, "appsettings.Development.json"));
 
-        Assert.Contains("\"StorageInfrastructure\"", source, StringComparison.Ordinal);
-        Assert.Contains("\"EnableOnStartup\": false", source, StringComparison.Ordinal);
-        Assert.Contains("\"ValidateDependenciesOnStartup\": false", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"StorageInfrastructure\"", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"EnableOnStartup\"", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"ValidateDependenciesOnStartup\"", source, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void ServiceCollectionExtensions_CanRestrictQueueStorageHealthCheck_ToReadiness()
+    public void ServiceCollectionExtensions_AlwaysRunsStorageDependencyHealthChecks_DuringStartup()
     {
         var repositoryRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
         var source = File.ReadAllText(Path.Combine(repositoryRoot, "Services/ServiceCollectionExtensions.cs"));
 
         Assert.Contains("AddCheck<QueueStorageHealthCheck>(", source, StringComparison.Ordinal);
         Assert.Contains("\"queue-storage\"", source, StringComparison.Ordinal);
-        Assert.Contains("ValidateDependenciesOnStartup == false", source, StringComparison.Ordinal);
-        Assert.Contains("tags: dependencyHealthCheckTags", source, StringComparison.Ordinal);
+        Assert.Contains("tags: [\"startup\", \"ready\"]", source, StringComparison.Ordinal);
     }
 
     [Fact]

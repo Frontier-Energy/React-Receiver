@@ -53,7 +53,6 @@ Examples:
 Key files:
 
 - `ServiceCollectionExtensions.cs`
-- `StorageInfrastructureHostedService.cs`
 - `StartupHealthCheckHostedService.cs`
 - `BootstrapDataHostedService.cs`
 - `InspectionIngestRetryHostedService.cs`

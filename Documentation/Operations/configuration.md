@@ -17,7 +17,6 @@ The application binds these sections:
 - `QueueStorage`
 - `TableStorage`
 - `BootstrapData`
-- `StorageInfrastructure`
 
 ## BlobStorage
 
@@ -84,17 +83,6 @@ Behavior:
 - when `SeedOnStartup` is `true`, startup imports form schemas, translations, and tenant config through their application services
 - `OverwriteExisting` controls whether import replaces existing data
 
-## StorageInfrastructure
-
-Configured fields:
-
-- `EnableOnStartup`
-
-Behavior:
-
-- when `EnableOnStartup` is `true`, startup provisions required blob containers, queue, and tables
-- default should remain `false` outside development environments so infrastructure is created by IaC, for example Bicep, rather than by the application during boot
-
 ## Startup Validation
 
 Storage-related configuration is validated in two places:
@@ -106,7 +94,6 @@ Relevant files:
 
 - `Services/StorageOptionsValidators.cs`
 - `Services/StorageHealthChecks.cs`
-- `Services/StorageInfrastructureHostedService.cs`
 - `Services/StartupHealthCheckHostedService.cs`
 
 ## Environment Variable Mapping
@@ -119,11 +106,11 @@ BlobStorage__ContainerName
 QueueStorage__QueueName
 TableStorage__InspectionIngestOutboxTableName
 BootstrapData__SeedOnStartup
-StorageInfrastructure__EnableOnStartup
 ```
 
 ## Operational Recommendations
 
 - Keep connection strings out of long-lived source-controlled defaults where possible.
 - Treat the inspection files container defined in `StorageDependencyNames.FilesContainerName` as part of inspection ingest, even though it is not configured under its own section.
+- Provision blob containers, queue, and tables through IaC such as Bicep before deploying the app.
 - If startup fails, inspect both option-validation failures and health-check failures.

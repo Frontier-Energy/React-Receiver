@@ -32,7 +32,7 @@ The controller layer is intentionally thin. Most endpoints send a MediatR comman
 2. Storage services: Azure SDK clients, storage option binding, health checks, and shared infrastructure services.
 3. Feature services: auth, users, inspections, form schemas, translations, and tenant config.
 4. MediatR: handlers plus pipeline behaviors for logging, auditing, exception capture, and request transactions.
-5. Hosted services: optional storage bootstrap for local development, startup readiness, seed import, and inspection retry processing.
+5. Hosted services: startup readiness, seed import, and inspection retry processing.
 
 This keeps startup simple: the top-level program mostly wires modules together, while each feature owns its own registrations.
 
@@ -153,12 +153,11 @@ These endpoints support optimistic concurrency through `ETag` headers. If a clie
 
 Hosted services handle infrastructure concerns that do not belong in request handlers.
 
-- `StorageInfrastructureHostedService` can ensure required blob containers, queue, and tables exist on startup when `StorageInfrastructure:EnableOnStartup` is enabled. Production infrastructure is expected to come from deployment automation such as Bicep rather than application boot.
 - `StartupHealthCheckHostedService` runs startup-tagged health checks and aborts startup if critical dependencies are not healthy.
 - `BootstrapDataHostedService` imports seed data for tenant config, translations, and form schemas when enabled.
 - `InspectionIngestRetryHostedService` polls for incomplete inspection ingests and retries finalization.
 
-This keeps the request path focused on user-facing work while still allowing the service to self-initialize in lower environments.
+This keeps the request path focused on user-facing work while relying on deployment automation such as Bicep to provision required infrastructure.
 
 ## Observability
 

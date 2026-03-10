@@ -92,9 +92,6 @@ param seedOnStartup bool = false
 @description('Whether bootstrap data seeding may overwrite existing data.')
 param overwriteExistingBootstrapData bool = false
 
-@description('Whether the app should validate storage dependencies during startup.')
-param validateDependenciesOnStartup bool = true
-
 var normalizedAppName = toLower(replace(appName, '-', ''))
 var compactServiceToken = 'qcs'
 var locationToken = 'cus'
@@ -377,14 +374,6 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
             {
               name: 'BootstrapData__OverwriteExisting'
               value: string(overwriteExistingBootstrapData)
-            }
-            {
-              name: 'StorageInfrastructure__EnableOnStartup'
-              value: 'false'
-            }
-            {
-              name: 'StorageInfrastructure__ValidateDependenciesOnStartup'
-              value: string(validateDependenciesOnStartup)
             }
           ]
           resources: {

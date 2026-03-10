@@ -36,7 +36,7 @@ Examples from `React-Receiver.Tests/Tests`:
 - `RequestContractValidationTests.cs`: request-contract expectations
 - `ApiExceptionHandlerTests.cs`: exception-to-problem-details mapping
 - `OptimisticConcurrencySeedStoreTests.cs`: ETag and `If-Match` behavior
-- `StorageStartupValidationTests.cs`: startup validation and hosted-service assumptions
+- `StorageStartupValidationTests.cs`: startup validation and storage-infrastructure guardrails
 
 ## Recommended Testing Heuristics
 

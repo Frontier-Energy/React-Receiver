@@ -89,13 +89,6 @@ public static class ServiceCollectionExtensions
 
     public static IServiceCollection AddStorageServices(this IServiceCollection services, IConfiguration configuration)
     {
-        var storageInfrastructureOptions = configuration
-            .GetSection("StorageInfrastructure")
-            .Get<StorageInfrastructureOptions>();
-        var dependencyHealthCheckTags = storageInfrastructureOptions?.ValidateDependenciesOnStartup == false
-            ? ["ready"]
-            : new[] { "startup", "ready" };
-
         services
             .AddOptions<BlobStorageOptions>()
             .Bind(configuration.GetSection("BlobStorage"))
@@ -111,9 +104,6 @@ public static class ServiceCollectionExtensions
         services
             .AddOptions<BootstrapDataOptions>()
             .Bind(configuration.GetSection("BootstrapData"));
-        services
-            .AddOptions<StorageInfrastructureOptions>()
-            .Bind(configuration.GetSection("StorageInfrastructure"));
 
         services.AddSingleton<Microsoft.Extensions.Options.IValidateOptions<BlobStorageOptions>, BlobStorageOptionsValidator>();
         services.AddSingleton<Microsoft.Extensions.Options.IValidateOptions<QueueStorageOptions>, QueueStorageOptionsValidator>();
@@ -141,13 +131,13 @@ public static class ServiceCollectionExtensions
                 tags: ["startup", "ready"])
             .AddCheck<BlobStorageHealthCheck>(
                 "blob-storage",
-                tags: dependencyHealthCheckTags)
+                tags: ["startup", "ready"])
             .AddCheck<QueueStorageHealthCheck>(
                 "queue-storage",
-                tags: dependencyHealthCheckTags)
+                tags: ["startup", "ready"])
             .AddCheck<TableStorageHealthCheck>(
                 "table-storage",
-                tags: dependencyHealthCheckTags);
+                tags: ["startup", "ready"]);
 
         services.AddSingleton<IBootstrapDataProvider, FileBootstrapDataProvider>();
         services.AddSingleton<IAuditEventLogger, AuditEventLogger>();
@@ -190,15 +180,6 @@ public static class ServiceCollectionExtensions
                     options.MaxConcurrentSessions = 8;
                 }
             });
-
-        var storageInfrastructureOptions = configuration
-            .GetSection("StorageInfrastructure")
-            .Get<StorageInfrastructureOptions>();
-
-        if (storageInfrastructureOptions?.EnableOnStartup == true)
-        {
-            services.AddHostedService<StorageInfrastructureHostedService>();
-        }
 
         services.AddHostedService<StartupHealthCheckHostedService>();
         services.AddHostedService<BootstrapDataHostedService>();
