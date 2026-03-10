@@ -15,3 +15,4 @@
 /React-Receiver.Tests/obj_verify
 /.azurite
 /node_modules
+ci-build-diag.log
