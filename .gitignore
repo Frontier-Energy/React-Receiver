@@ -13,3 +13,5 @@
 /bin_verify
 /React-Receiver.Tests/bin_verify
 /React-Receiver.Tests/obj_verify
+/.azurite
+/node_modules
