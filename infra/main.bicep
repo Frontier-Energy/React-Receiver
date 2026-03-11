@@ -144,11 +144,8 @@ var blobServiceUri = 'https://${storageAccount.name}.blob.${environment().suffix
 var queueServiceUri = 'https://${storageAccount.name}.queue.${environment().suffixes.storage}'
 var tableServiceUri = 'https://${storageAccount.name}.table.${environment().suffixes.storage}'
 var apimOpenApiSpec = loadTextContent('apim/openapi.v1.json')
-var apiManagementPolicy = '''
-<policies>
-  <inbound>
-    <base />
-    ${apimRequireAuthorizationHeader ? '''
+var apiManagementAuthorizationPolicy = apimRequireAuthorizationHeader
+  ? '''
     <choose>
       <when condition="@(!context.Request.Headers.ContainsKey(&quot;Authorization&quot;) || !context.Request.Headers.GetValueOrDefault(&quot;Authorization&quot;, &quot;&quot;).StartsWith(&quot;Bearer &quot;, StringComparison.OrdinalIgnoreCase))">
         <return-response>
@@ -158,22 +155,34 @@ var apiManagementPolicy = '''
           </set-header>
         </return-response>
       </when>
-    </choose>''' : ''}
-    <rate-limit-by-key calls="${apimRateLimitCalls}" renewal-period="${apimRateLimitRenewalPeriod}" counter-key="@(context.Request.Headers.GetValueOrDefault(&quot;Authorization&quot;, context.Request.IpAddress))" />
-    <validate-content max-size="${apimMaxRequestBodyBytes}" size-exceeded-action="prevent" unspecified-content-type-action="ignore" />
-    <set-backend-service base-url="https://${containerApp.properties.configuration.ingress.fqdn}" />
-  </inbound>
-  <backend>
-    <base />
-  </backend>
-  <outbound>
-    <base />
-  </outbound>
-  <on-error>
-    <base />
-  </on-error>
-</policies>
-'''
+    </choose>
+    '''
+  : ''
+var apiManagementPolicyLines = concat(
+  [
+    '<policies>'
+    '  <inbound>'
+    '    <base />'
+  ],
+  empty(apiManagementAuthorizationPolicy) ? [] : split(trim(apiManagementAuthorizationPolicy), '\n'),
+  [
+    '    <rate-limit-by-key calls="${apimRateLimitCalls}" renewal-period="${apimRateLimitRenewalPeriod}" counter-key="@(context.Request.Headers.GetValueOrDefault(&quot;Authorization&quot;, context.Request.IpAddress))" />'
+    '    <validate-content max-size="${apimMaxRequestBodyBytes}" size-exceeded-action="prevent" unspecified-content-type-action="ignore" />'
+    '    <set-backend-service base-url="https://${containerApp.properties.configuration.ingress.fqdn}" />'
+    '  </inbound>'
+    '  <backend>'
+    '    <base />'
+    '  </backend>'
+    '  <outbound>'
+    '    <base />'
+    '  </outbound>'
+    '  <on-error>'
+    '    <base />'
+    '  </on-error>'
+    '</policies>'
+  ]
+)
+var apiManagementPolicy = join(apiManagementPolicyLines, '\n')
 
 resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
   name: logAnalyticsWorkspaceName
