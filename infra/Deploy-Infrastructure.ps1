@@ -6,7 +6,9 @@ param(
 
     [string]$Location = 'centralus',
 
-    [switch]$SkipWhatIf
+    [switch]$SkipWhatIf,
+
+    [switch]$SkipOpenApiGeneration
 )
 
 $ErrorActionPreference = 'Stop'
@@ -50,10 +52,15 @@ if (-not (Test-Path $parameterFile)) {
 
 Set-Location $repoRoot
 
-Write-Host "Generating OpenAPI contract..."
-& powershell -ExecutionPolicy Bypass -File (Join-Path $repoRoot 'scripts\Generate-OpenApi.ps1') -Configuration Release
-if ($LASTEXITCODE -ne 0) {
-    throw 'OpenAPI generation failed.'
+if ($SkipOpenApiGeneration) {
+    Write-Host 'Skipping OpenAPI generation and using the checked-in infra/apim/openapi.v1.json contract.'
+}
+else {
+    Write-Host "Generating OpenAPI contract..."
+    & powershell -ExecutionPolicy Bypass -File (Join-Path $repoRoot 'scripts\Generate-OpenApi.ps1') -Configuration Release
+    if ($LASTEXITCODE -ne 0) {
+        throw 'OpenAPI generation failed.'
+    }
 }
 
 Write-Host "Checking Azure login state..."

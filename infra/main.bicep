@@ -174,7 +174,6 @@ var apiManagementPolicyLines = concat(
       ],
   [
     '    <validate-content max-size="${effectiveApimMaxRequestBodyBytes}" size-exceeded-action="prevent" unspecified-content-type-action="ignore" />'
-    '    <set-backend-service base-url="https://${containerApp.properties.configuration.ingress.fqdn}" />'
     '  </inbound>'
     '  <backend>'
     '    <base />'
@@ -193,7 +192,6 @@ var swaggerApiPolicy = '''
 <policies>
   <inbound>
     <base />
-    <set-backend-service base-url="${containerAppBaseUrl}" />
   </inbound>
   <backend>
     <base />

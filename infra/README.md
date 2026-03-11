@@ -73,6 +73,12 @@ Single-command local entrypoint:
 .\infra\Deploy-Infrastructure.ps1 -EnvironmentName dev
 ```
 
+If your machine does not have the ASP.NET Core 8.0 runtime required by the local `dotnet swagger` tool, you can use the checked-in OpenAPI contract instead:
+
+```powershell
+.\infra\Deploy-Infrastructure.ps1 -EnvironmentName dev -SkipOpenApiGeneration
+```
+
 ### Prerequisites
 
 - Azure CLI installed
