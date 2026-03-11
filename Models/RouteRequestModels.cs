@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Microsoft.AspNetCore.Mvc;
 
 namespace React_Receiver.Models;
 
@@ -36,6 +37,7 @@ public sealed class ReplayInspectionIngestOutboxRequest
 
 public sealed class FormSchemaRouteRequest
 {
+    [FromRoute(Name = "formType")]
     [Required(AllowEmptyStrings = false)]
     public string? FormType { get; init; }
 }
@@ -48,6 +50,7 @@ public sealed class TranslationLanguageRequest
 
 public sealed class TenantConfigRouteRequest
 {
+    [FromRoute(Name = "tenantId")]
     [Required(AllowEmptyStrings = false)]
     public string? TenantId { get; init; }
 }

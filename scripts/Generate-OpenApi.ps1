@@ -27,8 +27,61 @@ function Resolve-OpenApiPathParameterReferences {
         return
     }
 
+    function Get-DeclaredPathParameterNames {
+        param(
+            [Parameter(Mandatory = $true)]
+            [string]$PathTemplate
+        )
+
+        $matches = [regex]::Matches($PathTemplate, '\{([^}]+)\}')
+        return @($matches | ForEach-Object { $_.Groups[1].Value })
+    }
+
+    function Normalize-PathParameter {
+        param(
+            [Parameter(Mandatory = $true)]
+            [object]$Parameter,
+            [Parameter(Mandatory = $true)]
+            [string[]]$DeclaredNames
+        )
+
+        if ($null -eq $Parameter -or $Parameter.in -ne 'path' -or [string]::IsNullOrWhiteSpace($Parameter.name)) {
+            return $Parameter
+        }
+
+        $matchingName = $DeclaredNames | Where-Object { $_ -ieq $Parameter.name } | Select-Object -First 1
+        if (-not [string]::IsNullOrWhiteSpace($matchingName)) {
+            $Parameter.name = $matchingName
+        }
+
+        return $Parameter
+    }
+
     foreach ($pathProperty in $document.paths.PSObject.Properties) {
         $pathItem = $pathProperty.Value
+        $declaredPathParameters = Get-DeclaredPathParameterNames -PathTemplate $pathProperty.Name
+
+        if ($pathItem.PSObject.Properties.Name -contains 'parameters') {
+            $pathLevelParameters = @()
+            foreach ($parameter in @($pathItem.parameters)) {
+                if ($parameter.PSObject.Properties.Name -contains '$ref') {
+                    $reference = $parameter.'$ref'
+                    if ($reference -like '#/components/parameters/*') {
+                        $parameterName = $reference.Substring('#/components/parameters/'.Length)
+                        $componentParameter = $document.components.parameters.PSObject.Properties[$parameterName].Value
+                        if ($null -ne $componentParameter -and $componentParameter.in -eq 'path') {
+                            $pathLevelParameters += Normalize-PathParameter -Parameter (Copy-JsonNode -Value $componentParameter) -DeclaredNames $declaredPathParameters
+                            continue
+                        }
+                    }
+                }
+
+                $pathLevelParameters += Normalize-PathParameter -Parameter $parameter -DeclaredNames $declaredPathParameters
+            }
+
+            $pathItem.parameters = $pathLevelParameters
+        }
+
         foreach ($member in $pathItem.PSObject.Properties) {
             if ($member.Name -eq 'parameters') {
                 continue
@@ -47,13 +100,13 @@ function Resolve-OpenApiPathParameterReferences {
                         $parameterName = $reference.Substring('#/components/parameters/'.Length)
                         $componentParameter = $document.components.parameters.PSObject.Properties[$parameterName].Value
                         if ($null -ne $componentParameter -and $componentParameter.in -eq 'path') {
-                            $resolvedParameters += Copy-JsonNode -Value $componentParameter
+                            $resolvedParameters += Normalize-PathParameter -Parameter (Copy-JsonNode -Value $componentParameter) -DeclaredNames $declaredPathParameters
                             continue
                         }
                     }
                 }
 
-                $resolvedParameters += $parameter
+                $resolvedParameters += Normalize-PathParameter -Parameter $parameter -DeclaredNames $declaredPathParameters
             }
 
             $operation.parameters = $resolvedParameters
