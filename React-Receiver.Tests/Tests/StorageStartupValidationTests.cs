@@ -1,5 +1,9 @@
+using Azure.Data.Tables;
+using Azure.Storage.Blobs;
+using Azure.Storage.Queues;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using React_Receiver.Services;
@@ -180,7 +184,7 @@ public sealed class StorageStartupValidationTests
             })
             .Build();
 
-        var shouldSkip = ServiceCollectionExtensions.ShouldSkipHostedServicesForOpenApi(configuration);
+        var shouldSkip = React_Receiver.Services.ServiceCollectionExtensions.ShouldSkipHostedServicesForOpenApi(configuration);
 
         Assert.True(shouldSkip);
     }
@@ -190,7 +194,7 @@ public sealed class StorageStartupValidationTests
     {
         var configuration = new ConfigurationBuilder().Build();
 
-        var shouldSkip = ServiceCollectionExtensions.ShouldSkipHostedServicesForOpenApi(configuration);
+        var shouldSkip = React_Receiver.Services.ServiceCollectionExtensions.ShouldSkipHostedServicesForOpenApi(configuration);
 
         Assert.False(shouldSkip);
     }
@@ -238,7 +242,7 @@ public sealed class StorageStartupValidationTests
             })
             .Build();
 
-        var connectionString = ServiceCollectionExtensions.ResolveAzureMonitorConnectionString(configuration);
+        var connectionString = React_Receiver.Services.ServiceCollectionExtensions.ResolveAzureMonitorConnectionString(configuration);
 
         Assert.Equal("InstrumentationKey=test-key", connectionString);
     }
@@ -256,9 +260,51 @@ public sealed class StorageStartupValidationTests
             })
             .Build();
 
-        var connectionString = ServiceCollectionExtensions.ResolveAzureMonitorConnectionString(configuration);
+        var connectionString = React_Receiver.Services.ServiceCollectionExtensions.ResolveAzureMonitorConnectionString(configuration);
 
         Assert.Null(connectionString);
+    }
+
+    [Fact]
+    public void AddStorageServices_PrefersServiceUris_OverConnectionStrings()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["BlobStorage:ConnectionString"] = "UseDevelopmentStorage=true",
+                ["BlobStorage:ServiceUri"] = "https://acct.blob.core.windows.net",
+                ["BlobStorage:ContainerName"] = "raw-data",
+                ["QueueStorage:ConnectionString"] = "UseDevelopmentStorage=true",
+                ["QueueStorage:ServiceUri"] = "https://acct.queue.core.windows.net",
+                ["QueueStorage:QueueName"] = "processor",
+                ["TableStorage:ConnectionString"] = "UseDevelopmentStorage=true",
+                ["TableStorage:ServiceUri"] = "https://acct.table.core.windows.net",
+                ["TableStorage:TableName"] = "Users",
+                ["TableStorage:InspectionFilesTableName"] = "InspectionFiles",
+                ["TableStorage:InspectionIngestOutboxTableName"] = "InspectionIngestOutbox",
+                ["TableStorage:TenantConfigTableName"] = "TenantConfigs",
+                ["TableStorage:MeTableName"] = "MeProfiles",
+                ["TableStorage:FormSchemaCatalogTableName"] = "FormSchemaCatalog",
+                ["TableStorage:FormSchemasTableName"] = "FormSchemas",
+                ["TableStorage:TranslationsTableName"] = "Translations"
+            })
+            .Build();
+
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddStorageServices(configuration);
+
+        using var provider = services.BuildServiceProvider();
+
+        Assert.Equal(
+            new Uri("https://acct.blob.core.windows.net"),
+            provider.GetRequiredService<BlobServiceClient>().Uri);
+        Assert.Equal(
+            new Uri("https://acct.queue.core.windows.net"),
+            provider.GetRequiredService<QueueServiceClient>().Uri);
+        Assert.Equal(
+            new Uri("https://acct.table.core.windows.net"),
+            provider.GetRequiredService<TableServiceClient>().Uri);
     }
 
     private sealed class StubHealthCheckService : HealthCheckService

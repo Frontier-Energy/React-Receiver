@@ -222,6 +222,11 @@ public static class ServiceCollectionExtensions
         BlobStorageOptions options,
         TokenCredential credential)
     {
+        if (!string.IsNullOrWhiteSpace(options.ServiceUri))
+        {
+            return new Azure.Storage.Blobs.BlobServiceClient(GetRequiredServiceUri(options.ServiceUri, "BlobStorage:ServiceUri"), credential);
+        }
+
         if (!string.IsNullOrWhiteSpace(options.ConnectionString))
         {
             return new Azure.Storage.Blobs.BlobServiceClient(options.ConnectionString);
@@ -234,6 +239,11 @@ public static class ServiceCollectionExtensions
         QueueStorageOptions options,
         TokenCredential credential)
     {
+        if (!string.IsNullOrWhiteSpace(options.ServiceUri))
+        {
+            return new Azure.Storage.Queues.QueueServiceClient(GetRequiredServiceUri(options.ServiceUri, "QueueStorage:ServiceUri"), credential);
+        }
+
         if (!string.IsNullOrWhiteSpace(options.ConnectionString))
         {
             return new Azure.Storage.Queues.QueueServiceClient(options.ConnectionString);
@@ -246,6 +256,11 @@ public static class ServiceCollectionExtensions
         TableStorageOptions options,
         TokenCredential credential)
     {
+        if (!string.IsNullOrWhiteSpace(options.ServiceUri))
+        {
+            return new Azure.Data.Tables.TableServiceClient(GetRequiredServiceUri(options.ServiceUri, "TableStorage:ServiceUri"), credential);
+        }
+
         if (!string.IsNullOrWhiteSpace(options.ConnectionString))
         {
             return new Azure.Data.Tables.TableServiceClient(options.ConnectionString);
