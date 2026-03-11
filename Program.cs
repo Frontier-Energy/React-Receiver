@@ -23,8 +23,12 @@ builder.Services
     .AddFormSchemaFeature()
     .AddTranslationFeature()
     .AddTenantConfigFeature()
-    .AddMediatorServices()
-    .AddHostedServices(builder.Configuration);
+    .AddMediatorServices();
+
+if (!React_Receiver.Services.ServiceCollectionExtensions.ShouldSkipHostedServicesForOpenApi(builder.Configuration))
+{
+    builder.Services.AddHostedServices(builder.Configuration);
+}
 
 var app = builder.Build();
 

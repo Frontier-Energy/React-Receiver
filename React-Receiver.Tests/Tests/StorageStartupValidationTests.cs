@@ -171,6 +171,31 @@ public sealed class StorageStartupValidationTests
     }
 
     [Fact]
+    public void ShouldSkipHostedServicesForOpenApi_ReturnsTrue_WhenGenerateOpenApiEnabled()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["GenerateOpenApi"] = "true"
+            })
+            .Build();
+
+        var shouldSkip = ServiceCollectionExtensions.ShouldSkipHostedServicesForOpenApi(configuration);
+
+        Assert.True(shouldSkip);
+    }
+
+    [Fact]
+    public void ShouldSkipHostedServicesForOpenApi_ReturnsFalse_ByDefault()
+    {
+        var configuration = new ConfigurationBuilder().Build();
+
+        var shouldSkip = ServiceCollectionExtensions.ShouldSkipHostedServicesForOpenApi(configuration);
+
+        Assert.False(shouldSkip);
+    }
+
+    [Fact]
     public void AppSettings_DoNotExposeStorageInfrastructureProvisioningSettings()
     {
         var repositoryRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));

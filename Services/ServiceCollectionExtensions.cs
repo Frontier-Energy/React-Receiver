@@ -17,6 +17,11 @@ namespace React_Receiver.Services;
 
 public static class ServiceCollectionExtensions
 {
+    internal static bool ShouldSkipHostedServicesForOpenApi(IConfiguration configuration)
+    {
+        return configuration.GetValue<bool>("GenerateOpenApi");
+    }
+
     internal static string? ResolveAzureMonitorConnectionString(IConfiguration configuration)
     {
         var configuredValue = configuration["AzureMonitor:ConnectionString"];

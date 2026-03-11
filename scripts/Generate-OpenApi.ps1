@@ -48,9 +48,21 @@ try {
         New-Item -ItemType Directory -Path $outputDirectory | Out-Null
     }
 
-    dotnet swagger tofile --output $outputFile $assemblyPath $DocumentName
-    if ($LASTEXITCODE -ne 0) {
-        throw 'dotnet swagger tofile failed.'
+    $previousAspNetCoreEnvironment = $env:ASPNETCORE_ENVIRONMENT
+    $previousGenerateOpenApi = $env:GenerateOpenApi
+
+    try {
+        $env:ASPNETCORE_ENVIRONMENT = 'Development'
+        $env:GenerateOpenApi = 'true'
+
+        dotnet swagger tofile --output $outputFile $assemblyPath $DocumentName
+        if ($LASTEXITCODE -ne 0) {
+            throw 'dotnet swagger tofile failed.'
+        }
+    }
+    finally {
+        $env:ASPNETCORE_ENVIRONMENT = $previousAspNetCoreEnvironment
+        $env:GenerateOpenApi = $previousGenerateOpenApi
     }
 }
 finally {
