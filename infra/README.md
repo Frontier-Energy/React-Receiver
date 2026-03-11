@@ -48,6 +48,8 @@ API Management is provisioned from the application OpenAPI contract:
 
 Swagger is intentionally exposed through APIM only in `dev`. `uat` and `prod` do not publish the Swagger UI routes.
 
+Storage access for the Container App uses a user-assigned managed identity. The app receives that identity's client ID through `AZURE_CLIENT_ID`, while the Container App keeps its system-assigned identity for other platform integrations.
+
 Refresh the contract with:
 
 ```powershell
@@ -144,6 +146,37 @@ az deployment group create `
   --template-file infra/main.bicep `
   --parameters infra/environments/$envName.bicepparam `
   --output json
+```
+
+### 6a. Local smoke test after deployment
+
+After a successful `dev` deployment, verify the app and APIM directly:
+
+```powershell
+$containerAppUrl = az containerapp show `
+  --resource-group rg-qcontrol-service-cus-dev `
+  --name ca-qcontrol-service-cus-dev `
+  --query properties.configuration.ingress.fqdn `
+  -o tsv
+
+curl.exe -sS -D - "https://$containerAppUrl/health/live" -o NUL
+curl.exe -sS -D - "https://$containerAppUrl/swagger/v1/swagger.json" -o NUL
+curl.exe -sS -D - "https://apim-qcs-cus-dev-7dbwgp.azure-api.net/swagger/index.html" -o NUL
+```
+
+Expected results in `dev`:
+
+- `GET /health/live` returns `200`
+- `GET /swagger/v1/swagger.json` returns `200`
+- `GET /swagger/index.html` through APIM returns `301` to `./` or `200`, and the browser should load the Swagger UI
+
+If the app still fails to start, inspect the current container logs:
+
+```powershell
+az containerapp logs show `
+  --resource-group rg-qcontrol-service-cus-dev `
+  --name ca-qcontrol-service-cus-dev `
+  --tail 200
 ```
 
 ### 7. Verify the deployed resources

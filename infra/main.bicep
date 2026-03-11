@@ -119,6 +119,7 @@ var containerAppName = 'ca-${appName}-${resourceSuffix}'
 var managedEnvironmentName = 'cae-${appName}-${resourceSuffix}'
 var logAnalyticsWorkspaceName = 'log-${appName}-${resourceSuffix}'
 var applicationInsightsName = 'appi-${appName}-${resourceSuffix}'
+var storageManagedIdentityName = 'id-${appName}-storage-${resourceSuffix}'
 var apiManagementName = toLower('apim-${compactServiceToken}-${locationToken}-${environmentName}-${take(suffix, 6)}')
 var containerRegistryName = toLower('acr${compactServiceToken}${locationToken}${environmentName}${take(suffix, 6)}')
 var storageAccountName = toLower('st${compactServiceToken}${locationToken}${environmentName}${take(suffix, 6)}')
@@ -353,12 +354,21 @@ resource managedEnvironment 'Microsoft.App/managedEnvironments@2024-03-01' = {
   }
 }
 
+resource storageManagedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  name: storageManagedIdentityName
+  location: location
+  tags: tags
+}
+
 resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
   name: containerAppName
   location: location
   tags: tags
   identity: {
-    type: 'SystemAssigned'
+    type: 'SystemAssigned,UserAssigned'
+    userAssignedIdentities: {
+      '${storageManagedIdentity.id}': {}
+    }
   }
   properties: {
     managedEnvironmentId: managedEnvironment.id
@@ -391,6 +401,10 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
             {
               name: 'APPLICATIONINSIGHTS_CONNECTION_STRING'
               secretRef: 'applicationinsights-connection-string'
+            }
+            {
+              name: 'AZURE_CLIENT_ID'
+              value: storageManagedIdentity.properties.clientId
             }
             {
               name: 'BlobStorage__ServiceUri'
@@ -478,31 +492,31 @@ resource acrPullRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-
 }
 
 resource storageBlobDataContributorRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(storageAccount.id, containerApp.id, 'storage-blob-data-contributor')
+  name: guid(storageAccount.id, storageManagedIdentity.id, 'storage-blob-data-contributor')
   scope: storageAccount
   properties: {
     roleDefinitionId: storageBlobDataContributorRoleDefinitionId
-    principalId: containerApp.identity.principalId
+    principalId: storageManagedIdentity.properties.principalId
     principalType: 'ServicePrincipal'
   }
 }
 
 resource storageQueueDataContributorRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(storageAccount.id, containerApp.id, 'storage-queue-data-contributor')
+  name: guid(storageAccount.id, storageManagedIdentity.id, 'storage-queue-data-contributor')
   scope: storageAccount
   properties: {
     roleDefinitionId: storageQueueDataContributorRoleDefinitionId
-    principalId: containerApp.identity.principalId
+    principalId: storageManagedIdentity.properties.principalId
     principalType: 'ServicePrincipal'
   }
 }
 
 resource storageTableDataContributorRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(storageAccount.id, containerApp.id, 'storage-table-data-contributor')
+  name: guid(storageAccount.id, storageManagedIdentity.id, 'storage-table-data-contributor')
   scope: storageAccount
   properties: {
     roleDefinitionId: storageTableDataContributorRoleDefinitionId
-    principalId: containerApp.identity.principalId
+    principalId: storageManagedIdentity.properties.principalId
     principalType: 'ServicePrincipal'
   }
 }
@@ -798,3 +812,4 @@ output applicationContainerPort int = containerPort
 output apiManagementName string = apiManagement.name
 output apiManagementGatewayUrl string = apiManagement.properties.gatewayUrl
 output applicationInsightsName string = applicationInsights.name
+output storageManagedIdentityName string = storageManagedIdentity.name
