@@ -41,6 +41,7 @@ API Management is provisioned from the application OpenAPI contract:
 - Azure-managed default hostname only
 - explicit imported operations from `infra/apim/openapi.v1.json`
 - dev-only Swagger UI passthrough at `/swagger/` and `/swagger/index.html`
+- dev-only Swagger UI static assets including `/swagger/index.css` and `/swagger/index.js`
 - API-level policy enforcement for bearer auth header presence
 - rate limiting
 - request body size enforcement

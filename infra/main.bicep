@@ -191,6 +191,8 @@ var apiManagementPolicyLines = concat(
 var apiManagementPolicy = join(apiManagementPolicyLines, '\n')
 var swaggerOperationPolicyTemplates = {
   swaggerIndex: '/swagger/index.html'
+  swaggerIndexCss: '/swagger/index.css'
+  swaggerIndexJs: '/swagger/index.js'
   swaggerUiCss: '/swagger/swagger-ui.css'
   swaggerUiBundle: '/swagger/swagger-ui-bundle.js'
   swaggerUiStandalonePreset: '/swagger/swagger-ui-standalone-preset.js'
@@ -648,6 +650,56 @@ resource devSwaggerUiCssPolicy 'Microsoft.ApiManagement/service/apis/operations/
   properties: {
     format: 'rawxml'
     value: '<policies><inbound><base /><rewrite-uri template="${swaggerOperationPolicyTemplates.swaggerUiCss}" /></inbound><backend><base /></backend><outbound><base /></outbound><on-error><base /></on-error></policies>'
+  }
+}
+
+resource devSwaggerIndexCssOperation 'Microsoft.ApiManagement/service/apis/operations@2022-08-01' = if (environmentName == 'dev') {
+  name: 'swagger-index-css'
+  parent: devSwaggerApi
+  properties: {
+    displayName: 'Swagger index css'
+    method: 'GET'
+    urlTemplate: '/index.css'
+    templateParameters: []
+    responses: [
+      {
+        statusCode: 200
+      }
+    ]
+  }
+}
+
+resource devSwaggerIndexCssPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@2022-08-01' = if (environmentName == 'dev') {
+  name: 'policy'
+  parent: devSwaggerIndexCssOperation
+  properties: {
+    format: 'rawxml'
+    value: '<policies><inbound><base /><rewrite-uri template="${swaggerOperationPolicyTemplates.swaggerIndexCss}" /></inbound><backend><base /></backend><outbound><base /></outbound><on-error><base /></on-error></policies>'
+  }
+}
+
+resource devSwaggerIndexJsOperation 'Microsoft.ApiManagement/service/apis/operations@2022-08-01' = if (environmentName == 'dev') {
+  name: 'swagger-index-js'
+  parent: devSwaggerApi
+  properties: {
+    displayName: 'Swagger index js'
+    method: 'GET'
+    urlTemplate: '/index.js'
+    templateParameters: []
+    responses: [
+      {
+        statusCode: 200
+      }
+    ]
+  }
+}
+
+resource devSwaggerIndexJsPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@2022-08-01' = if (environmentName == 'dev') {
+  name: 'policy'
+  parent: devSwaggerIndexJsOperation
+  properties: {
+    format: 'rawxml'
+    value: '<policies><inbound><base /><rewrite-uri template="${swaggerOperationPolicyTemplates.swaggerIndexJs}" /></inbound><backend><base /></backend><outbound><base /></outbound><on-error><base /></on-error></policies>'
   }
 }
 
