@@ -252,7 +252,12 @@
         "operationId": "FormSchemas_GetFormSchema",
         "parameters": [
           {
-            "$ref": "#/components/parameters/FormType"
+            "name": "formType",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -270,7 +275,12 @@
         "operationId": "FormSchemas_UpsertFormSchema",
         "parameters": [
           {
-            "$ref": "#/components/parameters/FormType"
+            "name": "formType",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           },
           {
             "$ref": "#/components/parameters/IfMatch"
@@ -379,7 +389,12 @@
         "operationId": "TenantConfig_UpsertTenantConfig",
         "parameters": [
           {
-            "$ref": "#/components/parameters/TenantId"
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           },
           {
             "$ref": "#/components/parameters/IfMatch"
