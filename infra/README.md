@@ -40,10 +40,13 @@ API Management is provisioned from the application OpenAPI contract:
 
 - Azure-managed default hostname only
 - explicit imported operations from `infra/apim/openapi.v1.json`
+- dev-only Swagger UI passthrough at `/swagger/index.html`
 - API-level policy enforcement for bearer auth header presence
 - rate limiting
 - request body size enforcement
 - no subscription key requirement by default
+
+Swagger is intentionally exposed through APIM only in `dev`. `uat` and `prod` do not publish the Swagger UI routes.
 
 Refresh the contract with:
 

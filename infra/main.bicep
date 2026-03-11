@@ -144,6 +144,7 @@ var blobServiceUri = 'https://${storageAccount.name}.blob.${environment().suffix
 var queueServiceUri = 'https://${storageAccount.name}.queue.${environment().suffixes.storage}'
 var tableServiceUri = 'https://${storageAccount.name}.table.${environment().suffixes.storage}'
 var apimOpenApiSpec = loadTextContent('apim/openapi.v1.json')
+var containerAppBaseUrl = 'https://${containerApp.properties.configuration.ingress.fqdn}'
 var apiManagementAuthorizationPolicy = apimRequireAuthorizationHeader
   ? '''
     <choose>
@@ -188,6 +189,34 @@ var apiManagementPolicyLines = concat(
   ]
 )
 var apiManagementPolicy = join(apiManagementPolicyLines, '\n')
+var swaggerApiPolicy = '''
+<policies>
+  <inbound>
+    <base />
+    <set-backend-service base-url="${containerAppBaseUrl}" />
+  </inbound>
+  <backend>
+    <base />
+  </backend>
+  <outbound>
+    <base />
+  </outbound>
+  <on-error>
+    <base />
+  </on-error>
+</policies>
+'''
+var swaggerOperationPolicyTemplates = {
+  swaggerIndex: '/swagger/index.html'
+  swaggerUiCss: '/swagger/swagger-ui.css'
+  swaggerUiBundle: '/swagger/swagger-ui-bundle.js'
+  swaggerUiStandalonePreset: '/swagger/swagger-ui-standalone-preset.js'
+  swaggerInitializer: '/swagger/swagger-initializer.js'
+  swaggerJson: '/swagger/v1/swagger.json'
+  swaggerFavicon16: '/swagger/favicon-16x16.png'
+  swaggerFavicon32: '/swagger/favicon-32x32.png'
+  swaggerOauthRedirect: '/swagger/oauth2-redirect.html'
+}
 
 resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
   name: logAnalyticsWorkspaceName
@@ -522,7 +551,7 @@ resource apiManagementApi 'Microsoft.ApiManagement/service/apis@2022-08-01' = {
     protocols: [
       'https'
     ]
-    serviceUrl: 'https://${containerApp.properties.configuration.ingress.fqdn}'
+    serviceUrl: containerAppBaseUrl
     subscriptionRequired: false
     value: apimOpenApiSpec
   }
@@ -534,6 +563,254 @@ resource apiPolicy 'Microsoft.ApiManagement/service/apis/policies@2022-08-01' = 
   properties: {
     format: 'rawxml'
     value: apiManagementPolicy
+  }
+}
+
+resource devSwaggerApi 'Microsoft.ApiManagement/service/apis@2022-08-01' = if (environmentName == 'dev') {
+  name: 'qcontrol-service-swagger'
+  parent: apiManagement
+  properties: {
+    displayName: 'QControlService Swagger'
+    path: 'swagger'
+    protocols: [
+      'https'
+    ]
+    serviceUrl: containerAppBaseUrl
+    subscriptionRequired: false
+  }
+}
+
+resource devSwaggerApiPolicy 'Microsoft.ApiManagement/service/apis/policies@2022-08-01' = if (environmentName == 'dev') {
+  name: 'policy'
+  parent: devSwaggerApi
+  properties: {
+    format: 'rawxml'
+    value: swaggerApiPolicy
+  }
+}
+
+resource devSwaggerIndexOperation 'Microsoft.ApiManagement/service/apis/operations@2022-08-01' = if (environmentName == 'dev') {
+  name: 'swagger-index'
+  parent: devSwaggerApi
+  properties: {
+    displayName: 'Swagger UI index'
+    method: 'GET'
+    urlTemplate: '/index.html'
+    templateParameters: []
+    responses: [
+      {
+        statusCode: 200
+      }
+    ]
+  }
+}
+
+resource devSwaggerIndexPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@2022-08-01' = if (environmentName == 'dev') {
+  name: 'policy'
+  parent: devSwaggerIndexOperation
+  properties: {
+    format: 'rawxml'
+    value: '<policies><inbound><base /><rewrite-uri template="${swaggerOperationPolicyTemplates.swaggerIndex}" /></inbound><backend><base /></backend><outbound><base /></outbound><on-error><base /></on-error></policies>'
+  }
+}
+
+resource devSwaggerUiCssOperation 'Microsoft.ApiManagement/service/apis/operations@2022-08-01' = if (environmentName == 'dev') {
+  name: 'swagger-ui-css'
+  parent: devSwaggerApi
+  properties: {
+    displayName: 'Swagger UI CSS'
+    method: 'GET'
+    urlTemplate: '/swagger-ui.css'
+    templateParameters: []
+    responses: [
+      {
+        statusCode: 200
+      }
+    ]
+  }
+}
+
+resource devSwaggerUiCssPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@2022-08-01' = if (environmentName == 'dev') {
+  name: 'policy'
+  parent: devSwaggerUiCssOperation
+  properties: {
+    format: 'rawxml'
+    value: '<policies><inbound><base /><rewrite-uri template="${swaggerOperationPolicyTemplates.swaggerUiCss}" /></inbound><backend><base /></backend><outbound><base /></outbound><on-error><base /></on-error></policies>'
+  }
+}
+
+resource devSwaggerUiBundleOperation 'Microsoft.ApiManagement/service/apis/operations@2022-08-01' = if (environmentName == 'dev') {
+  name: 'swagger-ui-bundle'
+  parent: devSwaggerApi
+  properties: {
+    displayName: 'Swagger UI bundle'
+    method: 'GET'
+    urlTemplate: '/swagger-ui-bundle.js'
+    templateParameters: []
+    responses: [
+      {
+        statusCode: 200
+      }
+    ]
+  }
+}
+
+resource devSwaggerUiBundlePolicy 'Microsoft.ApiManagement/service/apis/operations/policies@2022-08-01' = if (environmentName == 'dev') {
+  name: 'policy'
+  parent: devSwaggerUiBundleOperation
+  properties: {
+    format: 'rawxml'
+    value: '<policies><inbound><base /><rewrite-uri template="${swaggerOperationPolicyTemplates.swaggerUiBundle}" /></inbound><backend><base /></backend><outbound><base /></outbound><on-error><base /></on-error></policies>'
+  }
+}
+
+resource devSwaggerUiStandalonePresetOperation 'Microsoft.ApiManagement/service/apis/operations@2022-08-01' = if (environmentName == 'dev') {
+  name: 'swagger-ui-standalone-preset'
+  parent: devSwaggerApi
+  properties: {
+    displayName: 'Swagger UI standalone preset'
+    method: 'GET'
+    urlTemplate: '/swagger-ui-standalone-preset.js'
+    templateParameters: []
+    responses: [
+      {
+        statusCode: 200
+      }
+    ]
+  }
+}
+
+resource devSwaggerUiStandalonePresetPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@2022-08-01' = if (environmentName == 'dev') {
+  name: 'policy'
+  parent: devSwaggerUiStandalonePresetOperation
+  properties: {
+    format: 'rawxml'
+    value: '<policies><inbound><base /><rewrite-uri template="${swaggerOperationPolicyTemplates.swaggerUiStandalonePreset}" /></inbound><backend><base /></backend><outbound><base /></outbound><on-error><base /></on-error></policies>'
+  }
+}
+
+resource devSwaggerInitializerOperation 'Microsoft.ApiManagement/service/apis/operations@2022-08-01' = if (environmentName == 'dev') {
+  name: 'swagger-initializer'
+  parent: devSwaggerApi
+  properties: {
+    displayName: 'Swagger initializer'
+    method: 'GET'
+    urlTemplate: '/swagger-initializer.js'
+    templateParameters: []
+    responses: [
+      {
+        statusCode: 200
+      }
+    ]
+  }
+}
+
+resource devSwaggerInitializerPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@2022-08-01' = if (environmentName == 'dev') {
+  name: 'policy'
+  parent: devSwaggerInitializerOperation
+  properties: {
+    format: 'rawxml'
+    value: '<policies><inbound><base /><rewrite-uri template="${swaggerOperationPolicyTemplates.swaggerInitializer}" /></inbound><backend><base /></backend><outbound><base /></outbound><on-error><base /></on-error></policies>'
+  }
+}
+
+resource devSwaggerJsonOperation 'Microsoft.ApiManagement/service/apis/operations@2022-08-01' = if (environmentName == 'dev') {
+  name: 'swagger-v1-json'
+  parent: devSwaggerApi
+  properties: {
+    displayName: 'Swagger v1 json'
+    method: 'GET'
+    urlTemplate: '/v1/swagger.json'
+    templateParameters: []
+    responses: [
+      {
+        statusCode: 200
+      }
+    ]
+  }
+}
+
+resource devSwaggerJsonPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@2022-08-01' = if (environmentName == 'dev') {
+  name: 'policy'
+  parent: devSwaggerJsonOperation
+  properties: {
+    format: 'rawxml'
+    value: '<policies><inbound><base /><rewrite-uri template="${swaggerOperationPolicyTemplates.swaggerJson}" /></inbound><backend><base /></backend><outbound><base /></outbound><on-error><base /></on-error></policies>'
+  }
+}
+
+resource devSwaggerFavicon16Operation 'Microsoft.ApiManagement/service/apis/operations@2022-08-01' = if (environmentName == 'dev') {
+  name: 'swagger-favicon-16'
+  parent: devSwaggerApi
+  properties: {
+    displayName: 'Swagger favicon 16'
+    method: 'GET'
+    urlTemplate: '/favicon-16x16.png'
+    templateParameters: []
+    responses: [
+      {
+        statusCode: 200
+      }
+    ]
+  }
+}
+
+resource devSwaggerFavicon16Policy 'Microsoft.ApiManagement/service/apis/operations/policies@2022-08-01' = if (environmentName == 'dev') {
+  name: 'policy'
+  parent: devSwaggerFavicon16Operation
+  properties: {
+    format: 'rawxml'
+    value: '<policies><inbound><base /><rewrite-uri template="${swaggerOperationPolicyTemplates.swaggerFavicon16}" /></inbound><backend><base /></backend><outbound><base /></outbound><on-error><base /></on-error></policies>'
+  }
+}
+
+resource devSwaggerFavicon32Operation 'Microsoft.ApiManagement/service/apis/operations@2022-08-01' = if (environmentName == 'dev') {
+  name: 'swagger-favicon-32'
+  parent: devSwaggerApi
+  properties: {
+    displayName: 'Swagger favicon 32'
+    method: 'GET'
+    urlTemplate: '/favicon-32x32.png'
+    templateParameters: []
+    responses: [
+      {
+        statusCode: 200
+      }
+    ]
+  }
+}
+
+resource devSwaggerFavicon32Policy 'Microsoft.ApiManagement/service/apis/operations/policies@2022-08-01' = if (environmentName == 'dev') {
+  name: 'policy'
+  parent: devSwaggerFavicon32Operation
+  properties: {
+    format: 'rawxml'
+    value: '<policies><inbound><base /><rewrite-uri template="${swaggerOperationPolicyTemplates.swaggerFavicon32}" /></inbound><backend><base /></backend><outbound><base /></outbound><on-error><base /></on-error></policies>'
+  }
+}
+
+resource devSwaggerOauthRedirectOperation 'Microsoft.ApiManagement/service/apis/operations@2022-08-01' = if (environmentName == 'dev') {
+  name: 'swagger-oauth-redirect'
+  parent: devSwaggerApi
+  properties: {
+    displayName: 'Swagger OAuth redirect'
+    method: 'GET'
+    urlTemplate: '/oauth2-redirect.html'
+    templateParameters: []
+    responses: [
+      {
+        statusCode: 200
+      }
+    ]
+  }
+}
+
+resource devSwaggerOauthRedirectPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@2022-08-01' = if (environmentName == 'dev') {
+  name: 'policy'
+  parent: devSwaggerOauthRedirectOperation
+  properties: {
+    format: 'rawxml'
+    value: '<policies><inbound><base /><rewrite-uri template="${swaggerOperationPolicyTemplates.swaggerOauthRedirect}" /></inbound><backend><base /></backend><outbound><base /></outbound><on-error><base /></on-error></policies>'
   }
 }
 
