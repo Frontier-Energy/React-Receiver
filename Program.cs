@@ -10,6 +10,7 @@ using React_Receiver.Observability;
 using React_Receiver.Services;
 
 var builder = WebApplication.CreateBuilder(args);
+var provisionLocalStorageOnly = args.Contains("--provision-local-storage", StringComparer.OrdinalIgnoreCase);
 
 builder.AddReceiverObservability();
 
@@ -28,6 +29,18 @@ builder.Services
 if (!React_Receiver.Services.ServiceCollectionExtensions.ShouldSkipHostedServicesForOpenApi(builder.Configuration))
 {
     builder.Services.AddHostedServices(builder.Configuration);
+}
+
+if (provisionLocalStorageOnly)
+{
+    builder.Services.AddSingleton<LocalStorageProvisioner>();
+}
+
+if (provisionLocalStorageOnly)
+{
+    using var provisionerHost = builder.Build();
+    await provisionerHost.Services.GetRequiredService<LocalStorageProvisioner>().ProvisionAsync();
+    return;
 }
 
 var app = builder.Build();

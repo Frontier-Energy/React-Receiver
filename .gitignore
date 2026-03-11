@@ -17,3 +17,6 @@
 /node_modules
 ci-build-diag.log
 solution-test.log
+test-storage.log
+build-local.log
+/tools/LocalStorageProvisioner/obj

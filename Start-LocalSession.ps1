@@ -83,11 +83,36 @@ try {
         }
     }
 
+    Write-Host "Building API for local dependency provisioning"
+    Push-Location $repoRoot
+    try {
+        & dotnet build --configuration $Configuration --nologo
+        if ($LASTEXITCODE -ne 0) {
+            throw "dotnet build failed."
+        }
+    }
+    finally {
+        Pop-Location
+    }
+
+    Write-Host "Provisioning local storage dependencies in Azurite"
+    Push-Location $repoRoot
+    try {
+        $env:ASPNETCORE_ENVIRONMENT = "Development"
+        & dotnet run --configuration $Configuration --no-build -- --provision-local-storage
+        if ($LASTEXITCODE -ne 0) {
+            throw "Local storage provisioning failed."
+        }
+    }
+    finally {
+        Pop-Location
+    }
+
     Write-Host "Starting API with ASPNETCORE_ENVIRONMENT=Development"
     $env:ASPNETCORE_ENVIRONMENT = "Development"
     Push-Location $repoRoot
     try {
-        & dotnet run --configuration $Configuration
+        & dotnet run --configuration $Configuration --no-build
     }
     finally {
         Pop-Location
