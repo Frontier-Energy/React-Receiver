@@ -41,9 +41,9 @@ param apimRateLimitCalls int = 60
 @minValue(1)
 param apimRateLimitRenewalPeriod int = 60
 
-@description('Maximum inbound request body size allowed through APIM, in bytes.')
+@description('Maximum inbound request body size allowed through APIM, in bytes. API Management validate-content supports up to 4194304 bytes.')
 @minValue(1)
-param apimMaxRequestBodyBytes int = 27262976
+param apimMaxRequestBodyBytes int = 4194304
 
 @description('Container image used for the initial Container App deployment before GitHub Actions rolls out the application image.')
 param bootstrapContainerImage string = 'mcr.microsoft.com/k8se/quickstart:latest'
@@ -158,6 +158,7 @@ var apiManagementAuthorizationPolicy = apimRequireAuthorizationHeader
     </choose>
     '''
   : ''
+var effectiveApimMaxRequestBodyBytes = apimMaxRequestBodyBytes > 4194304 ? 4194304 : apimMaxRequestBodyBytes
 var apiManagementPolicyLines = concat(
   [
     '<policies>'
@@ -165,9 +166,13 @@ var apiManagementPolicyLines = concat(
     '    <base />'
   ],
   empty(apiManagementAuthorizationPolicy) ? [] : split(trim(apiManagementAuthorizationPolicy), '\n'),
+  apimSkuName == 'Consumption'
+    ? []
+    : [
+        '    <rate-limit-by-key calls="${apimRateLimitCalls}" renewal-period="${apimRateLimitRenewalPeriod}" counter-key="@(context.Request.Headers.GetValueOrDefault(&quot;Authorization&quot;, context.Request.IpAddress))" />'
+      ],
   [
-    '    <rate-limit-by-key calls="${apimRateLimitCalls}" renewal-period="${apimRateLimitRenewalPeriod}" counter-key="@(context.Request.Headers.GetValueOrDefault(&quot;Authorization&quot;, context.Request.IpAddress))" />'
-    '    <validate-content max-size="${apimMaxRequestBodyBytes}" size-exceeded-action="prevent" unspecified-content-type-action="ignore" />'
+    '    <validate-content max-size="${effectiveApimMaxRequestBodyBytes}" size-exceeded-action="prevent" unspecified-content-type-action="ignore" />'
     '    <set-backend-service base-url="https://${containerApp.properties.configuration.ingress.fqdn}" />'
     '  </inbound>'
     '  <backend>'
