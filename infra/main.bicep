@@ -601,6 +601,31 @@ resource devSwaggerIndexPolicy 'Microsoft.ApiManagement/service/apis/operations/
   }
 }
 
+resource devSwaggerRootOperation 'Microsoft.ApiManagement/service/apis/operations@2022-08-01' = if (environmentName == 'dev') {
+  name: 'swagger-root'
+  parent: devSwaggerApi
+  properties: {
+    displayName: 'Swagger UI root'
+    method: 'GET'
+    urlTemplate: '/'
+    templateParameters: []
+    responses: [
+      {
+        statusCode: 200
+      }
+    ]
+  }
+}
+
+resource devSwaggerRootPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@2022-08-01' = if (environmentName == 'dev') {
+  name: 'policy'
+  parent: devSwaggerRootOperation
+  properties: {
+    format: 'rawxml'
+    value: '<policies><inbound><base /><rewrite-uri template="${swaggerOperationPolicyTemplates.swaggerIndex}" /></inbound><backend><base /></backend><outbound><base /></outbound><on-error><base /></on-error></policies>'
+  }
+}
+
 resource devSwaggerUiCssOperation 'Microsoft.ApiManagement/service/apis/operations@2022-08-01' = if (environmentName == 'dev') {
   name: 'swagger-ui-css'
   parent: devSwaggerApi

@@ -40,7 +40,7 @@ API Management is provisioned from the application OpenAPI contract:
 
 - Azure-managed default hostname only
 - explicit imported operations from `infra/apim/openapi.v1.json`
-- dev-only Swagger UI passthrough at `/swagger/index.html`
+- dev-only Swagger UI passthrough at `/swagger/` and `/swagger/index.html`
 - API-level policy enforcement for bearer auth header presence
 - rate limiting
 - request body size enforcement
@@ -161,6 +161,7 @@ $containerAppUrl = az containerapp show `
 
 curl.exe -sS -D - "https://$containerAppUrl/health/live" -o NUL
 curl.exe -sS -D - "https://$containerAppUrl/swagger/v1/swagger.json" -o NUL
+curl.exe -sS -D - "https://apim-qcs-cus-dev-7dbwgp.azure-api.net/swagger/" -o NUL
 curl.exe -sS -D - "https://apim-qcs-cus-dev-7dbwgp.azure-api.net/swagger/index.html" -o NUL
 ```
 
@@ -168,6 +169,7 @@ Expected results in `dev`:
 
 - `GET /health/live` returns `200`
 - `GET /swagger/v1/swagger.json` returns `200`
+- `GET /swagger/` through APIM returns `200`
 - `GET /swagger/index.html` through APIM returns `301` to `./` or `200`, and the browser should load the Swagger UI
 
 If the app still fails to start, inspect the current container logs:
