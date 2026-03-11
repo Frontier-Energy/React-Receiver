@@ -188,22 +188,6 @@ var apiManagementPolicyLines = concat(
   ]
 )
 var apiManagementPolicy = join(apiManagementPolicyLines, '\n')
-var swaggerApiPolicy = '''
-<policies>
-  <inbound>
-    <base />
-  </inbound>
-  <backend>
-    <base />
-  </backend>
-  <outbound>
-    <base />
-  </outbound>
-  <on-error>
-    <base />
-  </on-error>
-</policies>
-'''
 var swaggerOperationPolicyTemplates = {
   swaggerIndex: '/swagger/index.html'
   swaggerUiCss: '/swagger/swagger-ui.css'
@@ -575,15 +559,6 @@ resource devSwaggerApi 'Microsoft.ApiManagement/service/apis@2022-08-01' = if (e
     ]
     serviceUrl: containerAppBaseUrl
     subscriptionRequired: false
-  }
-}
-
-resource devSwaggerApiPolicy 'Microsoft.ApiManagement/service/apis/policies@2022-08-01' = if (environmentName == 'dev') {
-  name: 'policy'
-  parent: devSwaggerApi
-  properties: {
-    format: 'rawxml'
-    value: swaggerApiPolicy
   }
 }
 
